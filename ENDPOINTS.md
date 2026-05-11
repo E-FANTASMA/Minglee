@@ -1,4 +1,4 @@
-# Amor Matchmaking API (Frontend Reference)
+# Mingle Matchmaking API (Frontend Reference)
 
 Base URL (local): `http://localhost:4000`
 

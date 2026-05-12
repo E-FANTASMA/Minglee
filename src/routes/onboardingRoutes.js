@@ -21,4 +21,3 @@ onboardingRoutes.post("/preferred-builds", asyncHandler(onboardingController.sav
 onboardingRoutes.post("/photos/upload", upload.single('file'), asyncHandler(onboardingController.uploadPhoto));
 onboardingRoutes.post("/photos", asyncHandler(onboardingController.savePhotos));
 onboardingRoutes.get("/me/profile", asyncHandler(onboardingController.getMeProfile));
-

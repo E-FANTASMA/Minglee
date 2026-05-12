@@ -94,6 +94,9 @@ Response:
 { "photos": [{ "image_url": "https://example.com/1.jpg", "photo_type": "Profile", "upload_order": 1 }] }
 ```
 
+### `POST /photos/upload` (Auth)
+Uploads a single image file (`multipart/form-data`) and returns an `image_url` you can send to `POST /photos`.
+
 ### `GET /me/profile` (Auth)
 Response:
 ```json

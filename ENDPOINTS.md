@@ -210,6 +210,18 @@ Response:
 }
 ```
 
+### `POST /photos/upload`
+Upload a single image file to storage and get back an `image_url` you can pass into `POST /photos`.
+
+- Content-Type: `multipart/form-data`
+- Field name: any (the API takes the first file)
+- Max size: 5MB
+
+Response:
+```json
+{ "image_url": "https://.../storage/v1/object/public/user-photos/<userId>/<uuid>.jpg", "path": "<userId>/<uuid>.jpg" }
+```
+
 ### `GET /me/profile`
 Fetch the full onboarding/profile payload for the current user.
 
@@ -235,4 +247,3 @@ Response:
   ]
 }
 ```
-

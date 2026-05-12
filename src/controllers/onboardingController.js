@@ -7,6 +7,8 @@ import {
 } from "../validators/onboardingSchemas.js";
 import * as profileService from "../services/profileService.js";
 import { ApiError } from "../utils/apiError.js";
+import { supabase } from "../supabase.js";
+import path from "path";
 
 export async function upsertProfile(req, res) {
   const userId = req.user?.id;
@@ -140,5 +142,40 @@ export async function getMeProfile(req, res) {
     focuses: data.focuses.map((f) => f.focus),
     preferred_builds: data.builds.map((b) => b.build),
     photos: data.photos.map((p) => ({ image_url: p.image_url, photo_type: p.photo_type, upload_order: p.upload_order }))
+  });
+}
+
+export async function uploadPhoto(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  if (!req.file) {
+    throw new ApiError(400, "No file uploaded in request ('file' expected)");
+  }
+
+  const bucketName = process.env.SUPABASE_USER_PHOTOS_BUCKET || "user-photos";
+  const ext = path.extname(req.file.originalname) || ".jpg";
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(7);
+  const filePath = `${userId}/${timestamp}-${random}${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, req.file.buffer, {
+      contentType: req.file.mimetype,
+      upsert: true
+    });
+
+  if (error) {
+    throw new ApiError(500, `Supabase Storage Error: ${error.message}`);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(filePath);
+
+  return res.status(201).json({
+    image_url: publicUrlData.publicUrl,
+    path: filePath
   });
 }

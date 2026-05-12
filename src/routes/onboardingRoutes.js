@@ -2,8 +2,12 @@ import { Router } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { authMiddleware } from "../middleware/auth.js";
 import * as onboardingController from "../controllers/onboardingController.js";
-import { uploadAnyImage } from "../middleware/upload.js";
-import * as uploadController from "../controllers/uploadController.js";
+import multer from "multer";
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB limit
+});
 
 export const onboardingRoutes = Router();
 
@@ -14,6 +18,6 @@ onboardingRoutes.post("/profile", asyncHandler(onboardingController.upsertProfil
 onboardingRoutes.post("/preferences", asyncHandler(onboardingController.upsertPreferences));
 onboardingRoutes.post("/focuses", asyncHandler(onboardingController.saveFocuses));
 onboardingRoutes.post("/preferred-builds", asyncHandler(onboardingController.savePreferredBuilds));
-onboardingRoutes.post("/photos/upload", uploadAnyImage, asyncHandler(uploadController.uploadUserPhoto));
+onboardingRoutes.post("/photos/upload", upload.single('file'), asyncHandler(onboardingController.uploadPhoto));
 onboardingRoutes.post("/photos", asyncHandler(onboardingController.savePhotos));
 onboardingRoutes.get("/me/profile", asyncHandler(onboardingController.getMeProfile));

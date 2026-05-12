@@ -9,3 +9,4 @@ routes.get("/health", (_req, res) => res.json({ ok: true }));
 routes.use("/auth", authRoutes);
 routes.use("/", onboardingRoutes);
 
+

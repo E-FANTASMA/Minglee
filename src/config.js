@@ -1,3 +1,5 @@
+import "./env.js";
+
 export const config = {
   port: Number(process.env.PORT || 4000),
   supabaseUrl: process.env.SUPABASE_URL,

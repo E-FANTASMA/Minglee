@@ -41,8 +41,8 @@ export async function replaceFocuses(userId, focuses) {
 
   const { data, error } = await supabase
     .from("user_focuses")
-    .insert(focuses.map((focus) => ({ user_id: userId, focus })))
-    .select("id,focus");
+    .insert(focuses.map((focus) => ({ user_id: userId, focus_option: focus })))
+    .select("id,focus_option");
 
   if (error) throw new ApiError(400, "Unable to save focuses", { message: error.message, details: error.details });
   return data ?? [];
@@ -56,8 +56,13 @@ export async function replacePreferredBuilds(userId, builds) {
 
   const { data, error } = await supabase
     .from("preferred_builds")
-    .insert(builds.map((build) => ({ user_id: userId, build })))
-    .select("id,build");
+    .insert(
+      builds.map((build) => ({
+        user_id: userId,
+        preferred_build: build,
+      }))
+    )
+    .select("id,preferred_build");
 
   if (error) throw new ApiError(400, "Unable to save preferred builds", { message: error.message, details: error.details });
   return data ?? [];
@@ -116,8 +121,11 @@ export async function getMeProfile(userId) {
     await Promise.all([
       supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("preferences").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("user_focuses").select("focus").eq("user_id", userId),
-      supabase.from("preferred_builds").select("build").eq("user_id", userId),
+      supabase.from("user_focuses").select("focus_option").eq("user_id", userId),
+      supabase
+  .from("preferred_builds")
+  .select("preferred_build")
+  .eq("user_id", userId),
       supabase.from("user_photos").select("image_url,photo_type,upload_order").eq("user_id", userId).order("upload_order", { ascending: true })
     ]);
 

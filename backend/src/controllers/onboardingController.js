@@ -1,5 +1,4 @@
 import {
-  canonicalProfileSchema,
   focusesSchema,
   photosSchema,
   preferredBuildsSchema,
@@ -10,17 +9,37 @@ import * as profileService from "../services/profileService.js";
 import { ApiError } from "../utils/apiError.js";
 import { supabase } from "../supabase.js";
 import path from "path";
-import { normalizeProfilePayload, serializeProfileForClient } from "../utils/profileNormalization.js";
+
+function formatProfileResponse(profile) {
+  if (!profile) return null;
+
+  return {
+    gender: profile.gender ?? null,
+    age: profile.age ?? null,
+    height: profile.height ?? null,
+    build: profile.build ?? null,
+    skin_tone: profile.skin_tone ?? null,
+    personal_style: profile.personal_style ?? null,
+    social_persona: profile.social_persona ?? null,
+    weekend_type: profile.weekend_type ?? null,
+    afternoon_activity: profile.afternoon_activity ?? null,
+    habits: profile.habits ?? null,
+    conflict_style: profile.conflict_style ?? null,
+    relationship_goal: profile.relationship_goal ?? null,
+    green_flag: profile.green_flag ?? null,
+    instagram: profile.instagram ?? null,
+    tiktok: profile.tiktok ?? null
+  };
+}
 
 export async function upsertProfile(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
   const input = profileSchema.parse(req.body);
-  const normalizedInput = canonicalProfileSchema.parse(normalizeProfilePayload(input));
-  const profile = await profileService.upsertProfile(userId, normalizedInput);
+  const profile = await profileService.upsertProfile(userId, input);
   return res.status(201).json({
-    profile: serializeProfileForClient(profile)
+    profile: formatProfileResponse(profile)
   });
 }
 
@@ -46,7 +65,7 @@ export async function saveFocuses(req, res) {
 
   const input = focusesSchema.parse(req.body);
   const focuses = await profileService.replaceFocuses(userId, input.focuses);
-  return res.status(201).json({ focuses: focuses.map((f) => f.focus) });
+  return res.status(201).json({ focuses: focuses.map((f) => f.focus_option) });
 }
 
 export async function savePreferredBuilds(req, res) {
@@ -55,7 +74,7 @@ export async function savePreferredBuilds(req, res) {
 
   const input = preferredBuildsSchema.parse(req.body);
   const builds = await profileService.replacePreferredBuilds(userId, input.builds);
-  return res.status(201).json({ preferred_builds: builds.map((b) => b.build) });
+  return res.status(201).json({ preferred_builds: builds.map((b) => b.preferred_build) });
 }
 
 export async function savePhotos(req, res) {
@@ -99,7 +118,7 @@ export async function getMeProfile(req, res) {
       created_at: data.user.created_at,
       updated_at: data.user.updated_at
     },
-    profile: serializeProfileForClient(data.profile),
+    profile: formatProfileResponse(data.profile),
     preferences: data.preferences
       ? {
           preferred_min_age: data.preferences.preferred_min_age,
@@ -108,8 +127,8 @@ export async function getMeProfile(req, res) {
           preferred_max_height: data.preferences.preferred_max_height
         }
       : null,
-    focuses: data.focuses.map((f) => f.focus),
-    preferred_builds: data.builds.map((b) => b.build),
+    focuses: data.focuses.map((f) => f.focus_option),
+    preferred_builds: data.builds.map((b) => b.preferred_build),
     photos: data.photos.map((p) => ({ image_url: p.image_url, photo_type: p.photo_type, upload_order: p.upload_order }))
   });
 }

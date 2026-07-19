@@ -10,7 +10,11 @@ All authenticated endpoints require:
 ### `GET /health`
 Response:
 ```json
-{ "ok": true }
+{
+  "status": "healthy",
+  "timestamp": "2026-07-19T12:00:00.000Z",
+  "uptime": 12345
+}
 ```
 
 ## Auth

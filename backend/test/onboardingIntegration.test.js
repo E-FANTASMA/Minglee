@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import {
   BUILD_VALUES,
@@ -10,8 +10,35 @@ import {
   SOCIAL_PERSONA_VALUES,
   WEEKEND_TYPE_VALUES
 } from "../src/constants/profileValues.js";
+import { createApp } from "../src/app.js";
 
-const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4000";
+let server;
+let baseUrl = process.env.TEST_BASE_URL ?? "http://localhost:4000";
+
+before(async () => {
+  if (process.env.TEST_BASE_URL) return;
+
+  const app = createApp();
+  server = app.listen(0);
+  await new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+
+  const { port } = server.address();
+  baseUrl = `http://127.0.0.1:${port}`;
+});
+
+after(async () => {
+  if (!server) return;
+
+  await new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+});
 
 const GENDERS = ["Male", "Female", "Non-binary"];
 const SKIN_TONES = ["Fair", "Tan", "Brown", "Dark"];
@@ -36,7 +63,7 @@ async function api(path, { method = "GET", body, token } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -63,7 +90,7 @@ async function waitForServer(maxAttempts = 30) {
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`Server not reachable at ${BASE_URL}`);
+  throw new Error(`Server not reachable at ${baseUrl}`);
 }
 
 async function signupUser() {

@@ -106,5 +106,15 @@ Response:
 ### `GET /health`
 Response:
 ```json
-{ "ok": true }
+{
+  "status": "healthy",
+  "timestamp": "2026-07-19T12:00:00.000Z",
+  "uptime": 12345
+}
 ```
+
+## Keep-Alive Workflow
+
+GitHub Actions can ping the public `GET /health` endpoint every 10 minutes through `.github/workflows/keep-alive.yml`. Set the repository secret `BACKEND_URL` to your deployed backend base URL, then the workflow will request `${{ secrets.BACKEND_URL }}/health`.
+
+You can also run the workflow manually from the GitHub `Actions` tab by choosing `Keep Minglee Backend Alive` and selecting `Run workflow`. To adjust the interval, update the cron expression in the workflow file.

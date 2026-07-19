@@ -4,7 +4,13 @@ import { onboardingRoutes } from "./onboardingRoutes.js";
 
 export const routes = Router();
 
-routes.get("/health", (_req, res) => res.json({ ok: true }));
+routes.get("/health", (_req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 routes.use("/auth", authRoutes);
 routes.use("/", onboardingRoutes);

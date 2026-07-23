@@ -18,6 +18,7 @@ onboardingRoutes.post("/profile", asyncHandler(onboardingController.upsertProfil
 onboardingRoutes.post("/preferences", asyncHandler(onboardingController.upsertPreferences));
 onboardingRoutes.post("/focuses", asyncHandler(onboardingController.saveFocuses));
 onboardingRoutes.post("/preferred-builds", asyncHandler(onboardingController.savePreferredBuilds));
+onboardingRoutes.post("/complete-onboarding", asyncHandler(onboardingController.completeOnboarding));
 onboardingRoutes.post("/photos/upload", upload.single('file'), asyncHandler(onboardingController.uploadPhoto));
 onboardingRoutes.post("/photos", asyncHandler(onboardingController.savePhotos));
 onboardingRoutes.get("/me/profile", asyncHandler(onboardingController.getMeProfile));

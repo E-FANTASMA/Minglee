@@ -91,7 +91,7 @@ export async function replacePhotos(userId, photos) {
   return data ?? [];
 }
 
-async function markOnboardingComplete(userId) {
+export async function markOnboardingComplete(userId) {
   const { error } = await supabase
     .from("users")
     .update({

@@ -1,13 +1,19 @@
 import bcrypt from "bcryptjs";
 import { supabase } from "../supabase.js";
 import { ApiError } from "../utils/apiError.js";
+import { normalizeWhatsappNumber } from "../utils/whatsappNumber.js";
 
 export async function signup({ name, whatsapp_number, password }) {
+  const normalizedWhatsappNumber = normalizeWhatsappNumber(whatsapp_number);
+  if (!normalizedWhatsappNumber) {
+    throw new ApiError(400, "Invalid WhatsApp number format");
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   const { data, error } = await supabase
     .from("users")
-    .insert({ name, whatsapp_number, password_hash: passwordHash })
+    .insert({ name, whatsapp_number: normalizedWhatsappNumber, password_hash: passwordHash })
     .select("id,name,whatsapp_number,role,onboarding_completed,current_step,created_at,updated_at")
     .single();
 
@@ -16,10 +22,13 @@ export async function signup({ name, whatsapp_number, password }) {
 }
 
 export async function login({ whatsapp_number, password }) {
+  const normalizedWhatsappNumber = normalizeWhatsappNumber(whatsapp_number);
+  if (!normalizedWhatsappNumber) throw new ApiError(401, "Invalid credentials");
+
   const { data: user, error } = await supabase
     .from("users")
     .select("id,name,whatsapp_number,password_hash,role,onboarding_completed,current_step,created_at,updated_at")
-    .eq("whatsapp_number", whatsapp_number)
+    .eq("whatsapp_number", normalizedWhatsappNumber)
     .maybeSingle();
 
   if (error) throw new ApiError(400, "Database error", { message: error.message, details: error.details });

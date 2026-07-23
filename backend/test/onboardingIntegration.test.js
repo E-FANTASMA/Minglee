@@ -237,3 +237,53 @@ test("onboarding e2e: conflict_style frontend values persist exactly", async () 
     assert.equal(profileRes.data.profile.conflict_style, conflict_style);
   }
 });
+
+test("legacy complete-onboarding route remains compatible", async () => {
+  await waitForServer();
+  const { token } = await signupUser();
+
+  const payload = {
+    gender: "Female",
+    age: 24,
+    height: 168,
+    build: "Athletic",
+    skin_tone: "Brown",
+    personal_style: "Minimalist",
+    social_persona: "Ambiverted",
+    weekend_type: "Chill in",
+    afternoon_activity: "Movies",
+    habits: "Gym Routine",
+    conflict_style: "Need space then talk",
+    relationship_goal: "Long-term",
+    green_flag: "Kindness to others",
+    instagram: `@legacy${Date.now()}`,
+    tiktok: `@legacy${Date.now()}`,
+    preferred_min_age: 20,
+    preferred_max_age: 28,
+    preferred_min_height: 160,
+    preferred_max_height: 185,
+    focuses: ["Getting my degree and doing well"],
+    preferred_builds: ["Slim", "Athletic"],
+    uploaded_photos: [
+      { image_url: "https://example.com/legacy-1.jpg" },
+      { image_url: "https://example.com/legacy-2.jpg" }
+    ]
+  };
+
+  const completeRes = await api("/complete-onboarding", {
+    method: "POST",
+    body: payload,
+    token
+  });
+
+  assert.equal(completeRes.status, 201, `legacy complete-onboarding failed: ${JSON.stringify(completeRes.data)}`);
+
+  const meRes = await api("/me/profile", { token });
+  assert.equal(meRes.status, 200, `me/profile failed: ${JSON.stringify(meRes.data)}`);
+  assert.equal(meRes.data.user.onboarding_completed, true);
+  assert.equal(meRes.data.profile.gender, payload.gender);
+  assert.equal(meRes.data.preferences.preferred_min_age, payload.preferred_min_age);
+  assert.deepEqual(meRes.data.focuses, payload.focuses);
+  assert.deepEqual(meRes.data.preferred_builds, payload.preferred_builds);
+  assert.equal(meRes.data.photos.length, 2);
+});

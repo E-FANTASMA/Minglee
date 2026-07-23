@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "cleanup:storage": "node scripts/cleanupUnusedStorage.js",
+    "fix:whatsapp": "node scripts/fixWhatsappNumbers.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

@@ -10,6 +10,14 @@ import { ApiError } from "../utils/apiError.js";
 import { supabase } from "../supabase.js";
 import path from "path";
 
+function pickDefined(source, keys) {
+  return Object.fromEntries(
+    keys
+      .filter((key) => source[key] !== undefined)
+      .map((key) => [key, source[key]])
+  );
+}
+
 function formatProfileResponse(profile) {
   if (!profile) return null;
 
@@ -97,6 +105,82 @@ export async function savePhotos(req, res) {
       photo_type: p.photo_type,
       upload_order: p.upload_order
     }))
+  });
+}
+
+export async function completeOnboarding(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+
+  const profileInput = pickDefined(body, [
+    "gender",
+    "age",
+    "height",
+    "build",
+    "skin_tone",
+    "personal_style",
+    "social_persona",
+    "weekend_type",
+    "afternoon_activity",
+    "habits",
+    "conflict_style",
+    "relationship_goal",
+    "green_flag",
+    "instagram",
+    "tiktok"
+  ]);
+
+  const preferencesInput = pickDefined(body, [
+    "preferred_min_age",
+    "preferred_max_age",
+    "preferred_min_height",
+    "preferred_max_height"
+  ]);
+
+  if (Object.keys(profileInput).length > 0) {
+    const parsedProfile = profileSchema.parse(profileInput);
+    await profileService.upsertProfile(userId, parsedProfile);
+  }
+
+  if (Object.keys(preferencesInput).length > 0) {
+    const parsedPreferences = preferencesSchema.parse(preferencesInput);
+    await profileService.upsertPreferences(userId, parsedPreferences);
+  }
+
+  if (body.focuses !== undefined) {
+    const parsedFocuses = focusesSchema.parse({ focuses: body.focuses });
+    await profileService.replaceFocuses(userId, parsedFocuses.focuses);
+  }
+
+  if (body.preferred_builds !== undefined) {
+    const parsedBuilds = preferredBuildsSchema.parse({ builds: body.preferred_builds });
+    await profileService.replacePreferredBuilds(userId, parsedBuilds.builds);
+  }
+
+  const photoCandidates = Array.isArray(body.uploaded_photos)
+    ? body.uploaded_photos
+    : Array.isArray(body.photos)
+      ? body.photos
+      : null;
+
+  if (photoCandidates) {
+    const normalizedPhotos = photoCandidates.map((photo, index) => ({
+      image_url: photo.image_url,
+      photo_type: photo.photo_type ?? (index === 0 ? "Profile" : "Gallery"),
+      upload_order: photo.upload_order ?? index + 1
+    }));
+
+    const parsedPhotos = photosSchema.parse({ photos: normalizedPhotos });
+    await profileService.replacePhotos(userId, parsedPhotos.photos);
+  } else {
+    await profileService.markOnboardingComplete(userId);
+  }
+
+  return res.status(201).json({
+    success: true,
+    message: "Onboarding completed"
   });
 }
 

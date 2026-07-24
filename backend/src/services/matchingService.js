@@ -84,7 +84,7 @@ export async function fetchEligibleUsers() {
 export async function getPastMatches() {
   const { data, error } = await supabase
     .from("matches")
-    .select("user_id, user2_id");
+    .select("user1_id, user2_id");
 
   if (error) throw new ApiError(500, "Error fetching past matches", { details: error });
   
@@ -92,7 +92,7 @@ export async function getPastMatches() {
   if (data) {
     for (const match of data) {
       // Store a unique key for the pair regardless of order
-      const key = [match.user_id, match.user2_id].sort().join("|");
+      const key = [match.user1_id, match.user2_id].sort().join("|");
       pastPairs.add(key);
     }
   }
@@ -216,7 +216,7 @@ export function galeShapley(males, females, pastPairs) {
   for (const [fId, engagement] of Object.entries(engagements)) {
     // Both malePrefs and engagements stored the one-sided score, let's just use it or recalculate
     finalMatches.push({
-      user_id: engagement.maleId,
+      user1_id: engagement.maleId,
       user2_id: fId,
       match_score: engagement.score,
     });
@@ -228,32 +228,31 @@ export function galeShapley(males, females, pastPairs) {
 export async function expireOldMatches() {
   const { error } = await supabase
     .from("matches")
-    .update({ status: "done" })
-    .eq("status", "active");
+    .update({ status: "expired" })
+    .eq("status", "pending");
     
   if (error) {
     console.error("Error expiring old matches:", error);
   }
 }
 
-function getWeekNumber(d) {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-  var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-  return d.getUTCFullYear() + "-W" + weekNo;
+function getMatchWeekDate(d) {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const monday = new Date(d.setDate(diff));
+  return monday.toISOString().split('T')[0];
 }
 
 export async function saveMatches(matches) {
   if (matches.length === 0) return;
 
-  const currentWeek = getWeekNumber(new Date());
+  const currentWeek = getMatchWeekDate(new Date());
   const payload = matches.map(m => ({
-    user_id: m.user_id,
+    user1_id: m.user1_id,
     user2_id: m.user2_id,
     match_score: m.match_score,
     match_week: currentWeek,
-    status: "active"
+    status: "pending"
   }));
 
   const { error } = await supabase

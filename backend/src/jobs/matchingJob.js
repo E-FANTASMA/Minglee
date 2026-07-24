@@ -3,12 +3,12 @@ import { runMatchingCycle } from "../services/matchingService.js";
 import "../env.js";
 
 export function startMatchingScheduler() {
-  // Run every Friday at 3:45 AM WAT (Africa/Lagos timezone)
-  cron.schedule("45 3 * * 5", async () => {
+  // Run every Friday at 4:03 AM WAT (Africa/Lagos timezone)
+  cron.schedule("3 4 * * 5", async () => {
     console.log("[Scheduler] Triggering matching cycle...");
     await runMatchingCycle();
   }, {
     timezone: "Africa/Lagos"
   });
-  console.log("[Scheduler] Matching scheduler started (runs Friday at 3:45 AM WAT).");
+  console.log("[Scheduler] Matching scheduler started (runs Friday at 4:03 AM WAT).");
 }

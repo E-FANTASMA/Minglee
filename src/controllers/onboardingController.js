@@ -222,8 +222,10 @@ export async function upsertPreferences(req, res) {
 
   // Pre-convert height objects to total inches before schema validation
   const body = { ...req.body };
-  if (body.preferred_min_height != null) body.preferred_min_height = heightToInches(body.preferred_min_height);
-  if (body.preferred_max_height != null) body.preferred_max_height = heightToInches(body.preferred_max_height);
+  if (body.preferred_min_height != null)
+    body.preferred_min_height = heightToInches(body.preferred_min_height);
+  if (body.preferred_max_height != null)
+    body.preferred_max_height = heightToInches(body.preferred_max_height);
   const input = preferencesSchema.parse(body);
   const preferences = await profileService.upsertPreferences(userId, input);
   return res.status(201).json({

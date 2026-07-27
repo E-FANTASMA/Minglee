@@ -4,7 +4,7 @@ export const profileSchema = z
   .object({
     gender: z.string().min(1).max(40).optional(),
     age: z.number().int().min(18).optional(),
-    height: z.number().int().min(50).max(260).optional(),
+    height: z.number().int().min(36).max(96).optional(),
     build: z
       .enum([
         "Slim",
@@ -38,8 +38,8 @@ export const preferencesSchema = z
   .object({
     preferred_min_age: z.number().int().min(18).optional(),
     preferred_max_age: z.number().int().min(18).optional(),
-    preferred_min_height: z.number().int().min(50).max(260).optional(),
-    preferred_max_height: z.number().int().min(50).max(260).optional(),
+    preferred_min_height: z.number().int().min(36).max(96).optional(),
+    preferred_max_height: z.number().int().min(36).max(96).optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

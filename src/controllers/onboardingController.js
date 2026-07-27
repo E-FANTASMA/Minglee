@@ -11,6 +11,24 @@ import { supabase } from "../supabase.js";
 import path from "path";
 import { z } from "zod";
 
+/** Convert { feet, inches } object, string, or legacy number to total inches for DB storage */
+function heightToInches(h) {
+  if (h == null) return undefined;
+  if (typeof h === "object" && h.feet != null)
+    return h.feet * 12 + (h.inches || 0);
+  if (typeof h === "string") {
+    const n = Number(h.trim());
+    return Number.isNaN(n) ? undefined : n;
+  }
+  return h;
+}
+
+/** Convert DB total-inches integer to { feet, inches } for API responses */
+function inchesToHeight(totalInches) {
+  if (totalInches == null) return null;
+  return { feet: Math.floor(totalInches / 12), inches: totalInches % 12 };
+}
+
 function toNumberOrValue(value) {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
@@ -54,7 +72,7 @@ function normalizeCompleteOnboardingPayload(payload) {
   const normalizedProfile = stripUndefined({
     gender: normalizeOptionalText(profile.gender),
     age: toNumberOrValue(profile.age),
-    height: toNumberOrValue(profile.height),
+    height: heightToInches(profile.height),
     build: normalizeOptionalText(profile.build),
     skin_tone: normalizeOptionalText(profile.skin_tone),
     personal_style: normalizeOptionalText(profile.personal_style),
@@ -73,8 +91,8 @@ function normalizeCompleteOnboardingPayload(payload) {
     ? stripUndefined({
         preferred_min_age: toNumberOrValue(preferences.preferred_min_age),
         preferred_max_age: toNumberOrValue(preferences.preferred_max_age),
-        preferred_min_height: toNumberOrValue(preferences.preferred_min_height),
-        preferred_max_height: toNumberOrValue(preferences.preferred_max_height),
+        preferred_min_height: heightToInches(preferences.preferred_min_height),
+        preferred_max_height: heightToInches(preferences.preferred_max_height),
       })
     : undefined;
 
@@ -115,7 +133,7 @@ const profileSchemaLenient = z
   .object({
     gender: z.string().min(1).max(40).optional(),
     age: z.number().int().min(18).optional(),
-    height: z.number().int().min(50).max(260).optional(),
+    height: z.number().int().min(36).max(96).optional(),
     build: z
       .enum([
         "Slim",
@@ -145,8 +163,8 @@ const preferencesSchemaLenient = z
   .object({
     preferred_min_age: z.number().int().min(18).optional(),
     preferred_max_age: z.number().int().min(18).optional(),
-    preferred_min_height: z.number().int().min(50).max(260).optional(),
-    preferred_max_height: z.number().int().min(50).max(260).optional(),
+    preferred_min_height: z.number().int().min(36).max(96).optional(),
+    preferred_max_height: z.number().int().min(36).max(96).optional(),
   })
   .passthrough()
   .optional();
@@ -164,21 +182,24 @@ const completeOnboardingSchema = z.object({
         upload_order: z.number().int().min(1).max(2),
       }),
     )
-    .min(1)
-    .max(2),
+    .max(2)
+    .optional(),
 });
 
 export async function upsertProfile(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  const input = profileSchema.parse(req.body);
+  // Pre-convert height object to total inches before schema validation
+  const body = { ...req.body };
+  if (body.height != null) body.height = heightToInches(body.height);
+  const input = profileSchema.parse(body);
   const profile = await profileService.upsertProfile(userId, input);
   return res.status(201).json({
     profile: {
       gender: profile.gender ?? null,
       age: profile.age ?? null,
-      height: profile.height ?? null,
+      height: inchesToHeight(profile.height),
       build: profile.build ?? null,
       skin_tone: profile.skin_tone ?? null,
       personal_style: profile.personal_style ?? null,
@@ -199,14 +220,18 @@ export async function upsertPreferences(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  const input = preferencesSchema.parse(req.body);
+  // Pre-convert height objects to total inches before schema validation
+  const body = { ...req.body };
+  if (body.preferred_min_height != null) body.preferred_min_height = heightToInches(body.preferred_min_height);
+  if (body.preferred_max_height != null) body.preferred_max_height = heightToInches(body.preferred_max_height);
+  const input = preferencesSchema.parse(body);
   const preferences = await profileService.upsertPreferences(userId, input);
   return res.status(201).json({
     preferences: {
       preferred_min_age: preferences.preferred_min_age ?? null,
       preferred_max_age: preferences.preferred_max_age ?? null,
-      preferred_min_height: preferences.preferred_min_height ?? null,
-      preferred_max_height: preferences.preferred_max_height ?? null,
+      preferred_min_height: inchesToHeight(preferences.preferred_min_height),
+      preferred_max_height: inchesToHeight(preferences.preferred_max_height),
     },
   });
 }
@@ -281,7 +306,7 @@ export async function getMeProfile(req, res) {
       ? {
           gender: data.profile.gender,
           age: data.profile.age,
-          height: data.profile.height,
+          height: inchesToHeight(data.profile.height),
           build: data.profile.build,
           skin_tone: data.profile.skin_tone,
           personal_style: data.profile.personal_style,
@@ -300,8 +325,12 @@ export async function getMeProfile(req, res) {
       ? {
           preferred_min_age: data.preferences.preferred_min_age,
           preferred_max_age: data.preferences.preferred_max_age,
-          preferred_min_height: data.preferences.preferred_min_height,
-          preferred_max_height: data.preferences.preferred_max_height,
+          preferred_min_height: inchesToHeight(
+            data.preferences.preferred_min_height,
+          ),
+          preferred_max_height: inchesToHeight(
+            data.preferences.preferred_max_height,
+          ),
         }
       : null,
     focuses: data.focuses.map((f) => f.focus_option),
@@ -407,15 +436,27 @@ export async function completeOnboarding(req, res) {
   const rollbackActions = [];
 
   try {
-    // 1. Profile
-    await profileService.upsertProfile(userId, input.profile);
+    // 1. Profile — convert height object to inches for DB
+    const profileForDb = { ...input.profile };
+    if (profileForDb.height != null)
+      profileForDb.height = heightToInches(profileForDb.height);
+    await profileService.upsertProfile(userId, profileForDb);
     rollbackActions.push(async () => {
       await supabase.from("user_profiles").delete().eq("user_id", userId);
     });
 
-    // 2. Preferences (optional)
+    // 2. Preferences (optional) — convert height objects to inches for DB
     if (input.preferences) {
-      await profileService.upsertPreferences(userId, input.preferences);
+      const prefsForDb = { ...input.preferences };
+      if (prefsForDb.preferred_min_height != null)
+        prefsForDb.preferred_min_height = heightToInches(
+          prefsForDb.preferred_min_height,
+        );
+      if (prefsForDb.preferred_max_height != null)
+        prefsForDb.preferred_max_height = heightToInches(
+          prefsForDb.preferred_max_height,
+        );
+      await profileService.upsertPreferences(userId, prefsForDb);
       rollbackActions.push(async () => {
         await supabase.from("preferences").delete().eq("user_id", userId);
       });
@@ -440,11 +481,13 @@ export async function completeOnboarding(req, res) {
       });
     }
 
-    // 5. Photos
-    await profileService.replacePhotos(userId, input.photos);
-    rollbackActions.push(async () => {
-      await supabase.from("user_photos").delete().eq("user_id", userId);
-    });
+    // 5. Photos (optional)
+    if (input.photos && input.photos.length > 0) {
+      await profileService.replacePhotos(userId, input.photos);
+      rollbackActions.push(async () => {
+        await supabase.from("user_photos").delete().eq("user_id", userId);
+      });
+    }
 
     // 6. Mark onboarding as completed
     const { error: updateErr } = await supabase

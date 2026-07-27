@@ -9,6 +9,11 @@ import * as profileService from "../services/profileService.js";
 import { ApiError } from "../utils/apiError.js";
 import { supabase } from "../supabase.js";
 import path from "path";
+import { centimetersToFeetInches, normalizeHeightInput } from "../utils/height.js";
+
+function omitNil(object) {
+  return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== null && value !== undefined));
+}
 
 function pickDefined(source, keys) {
   return Object.fromEntries(
@@ -19,12 +24,12 @@ function pickDefined(source, keys) {
 }
 
 function formatProfileResponse(profile) {
-  if (!profile) return null;
+  if (!profile) return {};
 
-  return {
+  return omitNil({
     gender: profile.gender ?? null,
     age: profile.age ?? null,
-    height: profile.height ?? null,
+    height: centimetersToFeetInches(profile.height),
     build: profile.build ?? null,
     skin_tone: profile.skin_tone ?? null,
     personal_style: profile.personal_style ?? null,
@@ -37,6 +42,32 @@ function formatProfileResponse(profile) {
     green_flag: profile.green_flag ?? null,
     instagram: profile.instagram ?? null,
     tiktok: profile.tiktok ?? null
+  });
+}
+
+function formatPreferencesResponse(preferences) {
+  if (!preferences) return {};
+
+  return omitNil({
+    preferred_min_age: preferences.preferred_min_age ?? null,
+    preferred_max_age: preferences.preferred_max_age ?? null,
+    preferred_min_height: centimetersToFeetInches(preferences.preferred_min_height),
+    preferred_max_height: centimetersToFeetInches(preferences.preferred_max_height)
+  });
+}
+
+function normalizeProfileInput(input) {
+  return {
+    ...input,
+    height: normalizeHeightInput(input.height)
+  };
+}
+
+function normalizePreferencesInput(input) {
+  return {
+    ...input,
+    preferred_min_height: normalizeHeightInput(input.preferred_min_height),
+    preferred_max_height: normalizeHeightInput(input.preferred_max_height)
   };
 }
 
@@ -44,7 +75,7 @@ export async function upsertProfile(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  const input = profileSchema.parse(req.body);
+  const input = normalizeProfileInput(profileSchema.parse(req.body));
   const profile = await profileService.upsertProfile(userId, input);
   return res.status(201).json({
     profile: formatProfileResponse(profile)
@@ -55,16 +86,35 @@ export async function upsertPreferences(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  const input = preferencesSchema.parse(req.body);
+  const input = normalizePreferencesInput(preferencesSchema.parse(req.body));
   const preferences = await profileService.upsertPreferences(userId, input);
   return res.status(201).json({
-    preferences: {
-      preferred_min_age: preferences.preferred_min_age ?? null,
-      preferred_max_age: preferences.preferred_max_age ?? null,
-      preferred_min_height: preferences.preferred_min_height ?? null,
-      preferred_max_height: preferences.preferred_max_height ?? null
-    }
+    preferences: formatPreferencesResponse(preferences)
   });
+}
+
+export async function getProfile(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  const profile = await profileService.getProfile(userId);
+  return res.json({ profile: formatProfileResponse(profile) });
+}
+
+export async function getPreferences(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  const preferences = await profileService.getPreferences(userId);
+  return res.json({ preferences: formatPreferencesResponse(preferences) });
+}
+
+export async function getPreferredBuilds(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  const builds = await profileService.getPreferredBuilds(userId);
+  return res.json({ preferred_builds: builds.map((build) => build.preferred_build) });
 }
 
 export async function saveFocuses(req, res) {
@@ -82,6 +132,7 @@ export async function savePreferredBuilds(req, res) {
 
   const input = preferredBuildsSchema.parse(req.body);
   const builds = await profileService.replacePreferredBuilds(userId, input.builds);
+  await profileService.markOnboardingComplete(userId);
   return res.status(201).json({ preferred_builds: builds.map((b) => b.preferred_build) });
 }
 
@@ -140,12 +191,12 @@ export async function completeOnboarding(req, res) {
   ]);
 
   if (Object.keys(profileInput).length > 0) {
-    const parsedProfile = profileSchema.parse(profileInput);
+    const parsedProfile = normalizeProfileInput(profileSchema.parse(profileInput));
     await profileService.upsertProfile(userId, parsedProfile);
   }
 
   if (Object.keys(preferencesInput).length > 0) {
-    const parsedPreferences = preferencesSchema.parse(preferencesInput);
+    const parsedPreferences = normalizePreferencesInput(preferencesSchema.parse(preferencesInput));
     await profileService.upsertPreferences(userId, parsedPreferences);
   }
 
@@ -174,9 +225,9 @@ export async function completeOnboarding(req, res) {
 
     const parsedPhotos = photosSchema.parse({ photos: normalizedPhotos });
     await profileService.replacePhotos(userId, parsedPhotos.photos);
-  } else {
-    await profileService.markOnboardingComplete(userId);
   }
+
+  await profileService.markOnboardingComplete(userId);
 
   return res.status(201).json({
     success: true,
@@ -203,14 +254,7 @@ export async function getMeProfile(req, res) {
       updated_at: data.user.updated_at
     },
     profile: formatProfileResponse(data.profile),
-    preferences: data.preferences
-      ? {
-          preferred_min_age: data.preferences.preferred_min_age,
-          preferred_max_age: data.preferences.preferred_max_age,
-          preferred_min_height: data.preferences.preferred_min_height,
-          preferred_max_height: data.preferences.preferred_max_height
-        }
-      : null,
+    preferences: formatPreferencesResponse(data.preferences),
     focuses: data.focuses.map((f) => f.focus_option),
     preferred_builds: data.builds.map((b) => b.preferred_build),
     photos: data.photos.map((p) => ({ image_url: p.image_url, photo_type: p.photo_type, upload_order: p.upload_order }))

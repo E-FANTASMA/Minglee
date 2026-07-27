@@ -68,6 +68,28 @@ export async function replacePreferredBuilds(userId, builds) {
   return data ?? [];
 }
 
+export async function getProfile(userId) {
+  const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
+  if (error) throw new ApiError(400, "Database error", { message: error.message, details: error.details });
+  return data;
+}
+
+export async function getPreferences(userId) {
+  const { data, error } = await supabase.from("preferences").select("*").eq("user_id", userId).maybeSingle();
+  if (error) throw new ApiError(400, "Database error", { message: error.message, details: error.details });
+  return data;
+}
+
+export async function getPreferredBuilds(userId) {
+  const { data, error } = await supabase
+    .from("preferred_builds")
+    .select("preferred_build")
+    .eq("user_id", userId);
+
+  if (error) throw new ApiError(400, "Database error", { message: error.message, details: error.details });
+  return data ?? [];
+}
+
 export async function replacePhotos(userId, photos) {
   const { error: delError } = await supabase.from("user_photos").delete().eq("user_id", userId);
   if (delError) throw new ApiError(400, "Unable to reset photos", { message: delError.message, details: delError.details });
@@ -87,7 +109,6 @@ export async function replacePhotos(userId, photos) {
     .order("upload_order", { ascending: true });
 
   if (error) throw new ApiError(400, "Unable to save photos", { message: error.message, details: error.details });
-  await markOnboardingComplete(userId);
   return data ?? [];
 }
 

@@ -44,6 +44,13 @@ const GENDERS = ["Male", "Female", "Non-binary"];
 const SKIN_TONES = ["Fair", "Tan", "Brown", "Dark"];
 const AFTERNOON_ACTIVITIES = ["Reading", "Gym", "Movies", "Gaming", "Nature Walk"];
 const RELATIONSHIP_GOALS = ["Marriage bound", "Long-term", "Short-term", "Just looking for fun"];
+const HEIGHT_OPTIONS = [
+  { feet: 5, inches: 2 },
+  { feet: 5, inches: 6 },
+  { feet: 5, inches: 10 },
+  { feet: 6, inches: 1 },
+  { feet: 6, inches: 4 }
+];
 
 function pickOne(values) {
   return values[Math.floor(Math.random() * values.length)];
@@ -117,7 +124,7 @@ async function runOnboarding(token) {
   const profilePayload = {
     gender: pickOne(GENDERS),
     age: randomInt(18, 35),
-    height: randomInt(155, 195),
+    height: pickOne(HEIGHT_OPTIONS),
     build: pickOne(BUILD_VALUES),
     skin_tone: pickOne(SKIN_TONES),
     personal_style: pickOne(PERSONAL_STYLE_VALUES),
@@ -136,14 +143,14 @@ async function runOnboarding(token) {
   assert.equal(profileRes.status, 201, `profile failed: ${JSON.stringify(profileRes.data)}`);
 
   for (const [field, expected] of Object.entries(profilePayload)) {
-    assert.equal(profileRes.data.profile[field], expected, `${field} should round-trip unchanged`);
+    assert.deepEqual(profileRes.data.profile[field], expected, `${field} should round-trip unchanged`);
   }
 
   const preferencesPayload = {
     preferred_min_age: randomInt(18, 22),
     preferred_max_age: randomInt(28, 35),
-    preferred_min_height: randomInt(150, 165),
-    preferred_max_height: randomInt(175, 200)
+    preferred_min_height: { feet: 5, inches: 0 },
+    preferred_max_height: { feet: 6, inches: 4 }
   };
 
   const preferencesRes = await api("/preferences", { method: "POST", body: preferencesPayload, token });
@@ -158,6 +165,19 @@ async function runOnboarding(token) {
   const buildsRes = await api("/preferred-builds", { method: "POST", body: { builds }, token });
   assert.equal(buildsRes.status, 201, `preferred-builds failed: ${JSON.stringify(buildsRes.data)}`);
   assert.deepEqual(buildsRes.data.preferred_builds, builds);
+
+  const profileGetRes = await api("/profile", { token });
+  assert.equal(profileGetRes.status, 200, `GET /profile failed: ${JSON.stringify(profileGetRes.data)}`);
+  assert.deepEqual(profileGetRes.data.profile.height, profilePayload.height);
+
+  const preferencesGetRes = await api("/preferences", { token });
+  assert.equal(preferencesGetRes.status, 200, `GET /preferences failed: ${JSON.stringify(preferencesGetRes.data)}`);
+  assert.deepEqual(preferencesGetRes.data.preferences.preferred_min_height, preferencesPayload.preferred_min_height);
+  assert.deepEqual(preferencesGetRes.data.preferences.preferred_max_height, preferencesPayload.preferred_max_height);
+
+  const buildsGetRes = await api("/preferred-builds", { token });
+  assert.equal(buildsGetRes.status, 200, `GET /preferred-builds failed: ${JSON.stringify(buildsGetRes.data)}`);
+  assert.deepEqual(buildsGetRes.data.preferred_builds, builds);
 
   const photosRes = await api("/photos", {
     method: "POST",
@@ -184,9 +204,11 @@ async function runOnboarding(token) {
   assert.equal(meRes.data.user.onboarding_completed, true);
 
   for (const [field, expected] of Object.entries(profilePayload)) {
-    assert.equal(meRes.data.profile[field], expected, `GET profile ${field} should match stored value`);
+    assert.deepEqual(meRes.data.profile[field], expected, `GET profile ${field} should match stored value`);
   }
 
+  assert.deepEqual(meRes.data.preferences.preferred_min_height, preferencesPayload.preferred_min_height);
+  assert.deepEqual(meRes.data.preferences.preferred_max_height, preferencesPayload.preferred_max_height);
   assert.deepEqual(meRes.data.focuses, focuses);
   assert.deepEqual(meRes.data.preferred_builds, builds);
   assert.equal(meRes.data.photos.length, 2);
@@ -206,6 +228,24 @@ test("onboarding e2e: second account with different random selections", async ()
   await runOnboarding(token);
 });
 
+test("empty profile responses do not return null fields", async () => {
+  await waitForServer();
+  const { token } = await signupUser();
+
+  const profileRes = await api("/profile", { token });
+  assert.equal(profileRes.status, 200, `GET /profile failed: ${JSON.stringify(profileRes.data)}`);
+  assert.deepEqual(profileRes.data.profile, {});
+
+  const preferencesRes = await api("/preferences", { token });
+  assert.equal(preferencesRes.status, 200, `GET /preferences failed: ${JSON.stringify(preferencesRes.data)}`);
+  assert.deepEqual(preferencesRes.data.preferences, {});
+
+  const meRes = await api("/me/profile", { token });
+  assert.equal(meRes.status, 200, `GET /me/profile failed: ${JSON.stringify(meRes.data)}`);
+  assert.deepEqual(meRes.data.profile, {});
+  assert.deepEqual(meRes.data.preferences, {});
+});
+
 test("onboarding e2e: conflict_style frontend values persist exactly", async () => {
   await waitForServer();
 
@@ -216,7 +256,7 @@ test("onboarding e2e: conflict_style frontend values persist exactly", async () 
       body: {
         gender: "Female",
         age: 22,
-        height: 165,
+        height: { feet: 5, inches: 5 },
         build: "Athletic",
         skin_tone: "Brown",
         personal_style: "Minimalist",
@@ -245,7 +285,7 @@ test("legacy complete-onboarding route remains compatible", async () => {
   const payload = {
     gender: "Female",
     age: 24,
-    height: 168,
+    height: { feet: 5, inches: 6 },
     build: "Athletic",
     skin_tone: "Brown",
     personal_style: "Minimalist",
@@ -260,8 +300,8 @@ test("legacy complete-onboarding route remains compatible", async () => {
     tiktok: `@legacy${Date.now()}`,
     preferred_min_age: 20,
     preferred_max_age: 28,
-    preferred_min_height: 160,
-    preferred_max_height: 185,
+    preferred_min_height: { feet: 5, inches: 3 },
+    preferred_max_height: { feet: 6, inches: 1 },
     focuses: ["Getting my degree and doing well"],
     preferred_builds: ["Slim", "Athletic"],
     uploaded_photos: [
@@ -283,6 +323,9 @@ test("legacy complete-onboarding route remains compatible", async () => {
   assert.equal(meRes.data.user.onboarding_completed, true);
   assert.equal(meRes.data.profile.gender, payload.gender);
   assert.equal(meRes.data.preferences.preferred_min_age, payload.preferred_min_age);
+  assert.deepEqual(meRes.data.profile.height, payload.height);
+  assert.deepEqual(meRes.data.preferences.preferred_min_height, payload.preferred_min_height);
+  assert.deepEqual(meRes.data.preferences.preferred_max_height, payload.preferred_max_height);
   assert.deepEqual(meRes.data.focuses, payload.focuses);
   assert.deepEqual(meRes.data.preferred_builds, payload.preferred_builds);
   assert.equal(meRes.data.photos.length, 2);

@@ -73,14 +73,14 @@ Response:
 ## Onboarding / Profile (Auth)
 
 ### `POST /profile`
-Create or update the user’s matchmaking profile.
+Create or update the user profile.
 
-Request (any subset is allowed; strict validation on types/enums):
+Request:
 ```json
 {
   "gender": "Female",
   "age": 22,
-  "height": 168,
+  "height": { "feet": 5, "inches": 6 },
   "build": "Athletic",
   "skin_tone": "Brown",
   "personal_style": "Minimalist",
@@ -101,7 +101,7 @@ Response:
   "profile": {
     "gender": "Female",
     "age": 22,
-    "height": 168,
+    "height": { "feet": 5, "inches": 6 },
     "build": "Athletic",
     "skin_tone": "Brown",
     "personal_style": "Minimalist",
@@ -118,6 +118,11 @@ Response:
 }
 ```
 
+Legacy clients may still send `height` as a single number in centimeters.
+
+### `GET /profile`
+Fetch the signed-in user’s saved profile for editing.
+
 ### `POST /preferences`
 Create or update partner preferences.
 
@@ -126,8 +131,8 @@ Request:
 {
   "preferred_min_age": 21,
   "preferred_max_age": 28,
-  "preferred_min_height": 160,
-  "preferred_max_height": 190
+  "preferred_min_height": { "feet": 5, "inches": 3 },
+  "preferred_max_height": { "feet": 6, "inches": 1 }
 }
 ```
 Response:
@@ -136,11 +141,16 @@ Response:
   "preferences": {
     "preferred_min_age": 21,
     "preferred_max_age": 28,
-    "preferred_min_height": 160,
-    "preferred_max_height": 190
+    "preferred_min_height": { "feet": 5, "inches": 3 },
+    "preferred_max_height": { "feet": 6, "inches": 1 }
   }
 }
 ```
+
+Legacy clients may still send preference heights as centimeters.
+
+### `GET /preferences`
+Fetch the signed-in user’s saved preferences for editing.
 
 ### `POST /focuses`
 Save Q9 focus selections (max 2).
@@ -171,7 +181,7 @@ Response:
 ```
 
 ### `POST /preferred-builds`
-Save preferred builds (multi-select).
+Save preferred builds and mark onboarding complete.
 
 Allowed build values:
 - `Slim`
@@ -187,6 +197,9 @@ Response:
 ```json
 { "preferred_builds": ["Slim", "Average"] }
 ```
+
+### `GET /preferred-builds`
+Fetch the signed-in user’s saved preferred builds for editing.
 
 ### `POST /photos`
 Save uploaded photo URLs (min 2, max 3). `upload_order` must be unique.
@@ -214,6 +227,8 @@ Response:
 }
 ```
 
+Photos remain supported but are no longer required to finish onboarding.
+
 ### `POST /photos/upload`
 Upload a single image file to storage and get back an `image_url` you can pass into `POST /photos`.
 
@@ -237,13 +252,22 @@ Response:
     "name": "Jane",
     "whatsapp_number": "+2348012345678",
     "role": "user",
-    "onboarding_completed": false,
-    "current_step": 1,
+    "onboarding_completed": true,
+    "current_step": 0,
     "created_at": "2026-05-09T00:00:00.000Z",
     "updated_at": "2026-05-09T00:00:00.000Z"
   },
-  "profile": { "age": 22, "build": "Athletic" },
-  "preferences": { "preferred_min_age": 21, "preferred_max_age": 28 },
+  "profile": {
+    "age": 22,
+    "height": { "feet": 5, "inches": 6 },
+    "build": "Athletic"
+  },
+  "preferences": {
+    "preferred_min_age": 21,
+    "preferred_max_age": 28,
+    "preferred_min_height": { "feet": 5, "inches": 3 },
+    "preferred_max_height": { "feet": 6, "inches": 1 }
+  },
   "focuses": ["Getting my degree and doing well"],
   "preferred_builds": ["Slim", "Average"],
   "photos": [

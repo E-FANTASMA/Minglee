@@ -11,11 +11,27 @@ import {
   WEEKEND_TYPE_VALUES
 } from "../constants/profileValues.js";
 
+const heightValueSchema = z.union([
+  z.number().int().min(50).max(260),
+  z
+    .object({
+      feet: z.number().int().min(1).max(8),
+      inches: z.number().int().min(0).max(11)
+    })
+    .strict()
+]);
+
+function toComparableHeight(value) {
+  if (value == null) return null;
+  if (typeof value === "number") return value;
+  return value.feet * 12 + value.inches;
+}
+
 export const profileSchema = z
   .object({
     gender: z.string().min(1).max(40).optional(),
     age: z.number().int().min(18).optional(),
-    height: z.number().int().min(50).max(260).optional(),
+    height: heightValueSchema.optional(),
     build: z.enum(BUILD_VALUES).optional(),
     skin_tone: z.string().min(1).max(60).optional(),
     personal_style: z.enum(PERSONAL_STYLE_VALUES).optional(),
@@ -48,8 +64,8 @@ export const preferencesSchema = z
   .object({
     preferred_min_age: z.number().int().min(18).optional(),
     preferred_max_age: z.number().int().min(18).optional(),
-    preferred_min_height: z.number().int().min(50).max(260).optional(),
-    preferred_max_height: z.number().int().min(50).max(260).optional()
+    preferred_min_height: heightValueSchema.optional(),
+    preferred_max_height: heightValueSchema.optional()
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -60,10 +76,12 @@ export const preferencesSchema = z
         path: ["preferred_min_age"]
       });
     }
+    const minHeight = toComparableHeight(v.preferred_min_height);
+    const maxHeight = toComparableHeight(v.preferred_max_height);
     if (
-      v.preferred_min_height != null &&
-      v.preferred_max_height != null &&
-      v.preferred_min_height > v.preferred_max_height
+      minHeight != null &&
+      maxHeight != null &&
+      minHeight > maxHeight
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

@@ -15,9 +15,12 @@ export const onboardingRoutes = Router();
 onboardingRoutes.use(authMiddleware);
 
 onboardingRoutes.post("/profile", asyncHandler(onboardingController.upsertProfile));
+onboardingRoutes.get("/profile", asyncHandler(onboardingController.getProfile));
 onboardingRoutes.post("/preferences", asyncHandler(onboardingController.upsertPreferences));
+onboardingRoutes.get("/preferences", asyncHandler(onboardingController.getPreferences));
 onboardingRoutes.post("/focuses", asyncHandler(onboardingController.saveFocuses));
 onboardingRoutes.post("/preferred-builds", asyncHandler(onboardingController.savePreferredBuilds));
+onboardingRoutes.get("/preferred-builds", asyncHandler(onboardingController.getPreferredBuilds));
 onboardingRoutes.post("/complete-onboarding", asyncHandler(onboardingController.completeOnboarding));
 onboardingRoutes.post("/photos/upload", upload.single('file'), asyncHandler(onboardingController.uploadPhoto));
 onboardingRoutes.post("/photos", asyncHandler(onboardingController.savePhotos));

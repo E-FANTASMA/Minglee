@@ -47,22 +47,28 @@ Response:
 ### `POST /profile` (Auth)
 Request:
 ```json
-{ "gender": "Female", "age": 22, "height": 168, "build": "Athletic", "skin_tone": "Brown", "instagram": "@jane" }
+{ "gender": "Female", "age": 22, "height": { "feet": 5, "inches": 6 }, "build": "Athletic", "skin_tone": "Brown", "instagram": "@jane" }
 ```
 Response:
 ```json
-{ "profile": { "gender": "Female", "age": 22, "height": 168, "build": "Athletic", "skin_tone": "Brown" } }
+{ "profile": { "gender": "Female", "age": 22, "height": { "feet": 5, "inches": 6 }, "build": "Athletic", "skin_tone": "Brown" } }
 ```
+
+### `GET /profile` (Auth)
+Returns the signed-in user’s saved profile values so the frontend can prefill edit forms.
 
 ### `POST /preferences` (Auth)
 Request:
 ```json
-{ "preferred_min_age": 21, "preferred_max_age": 28, "preferred_min_height": 160, "preferred_max_height": 190 }
+{ "preferred_min_age": 21, "preferred_max_age": 28, "preferred_min_height": { "feet": 5, "inches": 3 }, "preferred_max_height": { "feet": 6, "inches": 1 } }
 ```
 Response:
 ```json
-{ "preferences": { "preferred_min_age": 21, "preferred_max_age": 28, "preferred_min_height": 160, "preferred_max_height": 190 } }
+{ "preferences": { "preferred_min_age": 21, "preferred_max_age": 28, "preferred_min_height": { "feet": 5, "inches": 3 }, "preferred_max_height": { "feet": 6, "inches": 1 } } }
 ```
+
+### `GET /preferences` (Auth)
+Returns the signed-in user’s saved preferences for editing.
 
 ### `POST /focuses` (Auth)
 Request:
@@ -84,6 +90,11 @@ Response:
 { "preferred_builds": ["Slim", "Average"] }
 ```
 
+This endpoint now also marks onboarding complete, so profile photos are no longer required to finish onboarding.
+
+### `GET /preferred-builds` (Auth)
+Returns the signed-in user’s saved preferred builds for editing.
+
 ### `POST /photos` (Auth)
 Request:
 ```json
@@ -94,13 +105,15 @@ Response:
 { "photos": [{ "image_url": "https://example.com/1.jpg", "photo_type": "Profile", "upload_order": 1 }] }
 ```
 
+Photos are now optional for onboarding completion.
+
 ### `POST /photos/upload` (Auth)
 Uploads a single image file (`multipart/form-data`) and returns an `image_url` you can send to `POST /photos`.
 
 ### `GET /me/profile` (Auth)
 Response:
 ```json
-{ "user": { "id": "uuid", "name": "Jane", "whatsapp_number": "+234..." }, "profile": { "age": 22 }, "preferences": { "preferred_min_age": 21 }, "focuses": ["Getting my degree and doing well"], "preferred_builds": ["Slim"], "photos": [{ "image_url": "https://..." }] }
+{ "user": { "id": "uuid", "name": "Jane", "whatsapp_number": "+234..." }, "profile": { "age": 22, "height": { "feet": 5, "inches": 6 } }, "preferences": { "preferred_min_age": 21, "preferred_min_height": { "feet": 5, "inches": 3 } }, "focuses": ["Getting my degree and doing well"], "preferred_builds": ["Slim"], "photos": [{ "image_url": "https://..." }] }
 ```
 
 ### `GET /health`

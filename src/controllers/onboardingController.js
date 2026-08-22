@@ -11,6 +11,29 @@ import { supabase } from "../supabase.js";
 import path from "path";
 import { z } from "zod";
 
+const buildSchema = z.enum([
+  "Slim",
+  "Petite",
+  "Athletic",
+  "Average",
+  "Muscular",
+  "Curvy",
+  "Plus-size",
+]);
+
+const conflictStyleSchema = z.enum([
+  "Talk it out immediately",
+  "Need space then talk",
+  "Let it blow over",
+]);
+
+const relationshipGoalSchema = z.enum([
+  "Marriage bound",
+  "Long-term",
+  "Short-term",
+  "Just looking for fun",
+]);
+
 /** Convert { feet, inches } object, string, or legacy number to total inches for DB storage */
 function heightToInches(h) {
   if (h == null) return undefined;
@@ -30,6 +53,7 @@ function inchesToHeight(totalInches) {
 }
 
 function toNumberOrValue(value) {
+  if (value == null) return undefined;
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
   if (trimmed === "") return undefined;
@@ -38,6 +62,7 @@ function toNumberOrValue(value) {
 }
 
 function normalizeOptionalText(value) {
+  if (value == null) return undefined;
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
@@ -127,6 +152,39 @@ function normalizeCompleteOnboardingPayload(payload) {
   });
 }
 
+function normalizeProfilePayload(payload) {
+  const body = payload && typeof payload === "object" ? payload : {};
+
+  return stripUndefined({
+    gender: normalizeOptionalText(body.gender),
+    age: toNumberOrValue(body.age),
+    height: heightToInches(body.height),
+    build: normalizeOptionalText(body.build),
+    skin_tone: normalizeOptionalText(body.skin_tone),
+    personal_style: normalizeOptionalText(body.personal_style),
+    social_persona: normalizeOptionalText(body.social_persona),
+    weekend_type: normalizeOptionalText(body.weekend_type),
+    afternoon_activity: normalizeOptionalText(body.afternoon_activity),
+    habits: normalizeOptionalText(body.habits),
+    conflict_style: normalizeOptionalText(body.conflict_style),
+    relationship_goal: normalizeOptionalText(body.relationship_goal),
+    green_flag: normalizeOptionalText(body.green_flag),
+    instagram: normalizeOptionalText(body.instagram),
+    tiktok: normalizeOptionalText(body.tiktok),
+  });
+}
+
+function normalizePreferencesPayload(payload) {
+  const body = payload && typeof payload === "object" ? payload : {};
+
+  return stripUndefined({
+    preferred_min_age: toNumberOrValue(body.preferred_min_age),
+    preferred_max_age: toNumberOrValue(body.preferred_max_age),
+    preferred_min_height: heightToInches(body.preferred_min_height),
+    preferred_max_height: heightToInches(body.preferred_max_height),
+  });
+}
+
 // Schema for the atomic onboarding completion endpoint
 // Uses non-strict profile/preferences to tolerate edge cases from the frontend
 const profileSchemaLenient = z
@@ -134,25 +192,15 @@ const profileSchemaLenient = z
     gender: z.string().min(1).max(40).optional(),
     age: z.number().int().min(18).optional(),
     height: z.number().int().min(36).max(96).optional(),
-    build: z
-      .enum([
-        "Slim",
-        "Petite",
-        "Athletic",
-        "Average",
-        "Muscular",
-        "Curvy",
-        "Plus-size",
-      ])
-      .optional(),
+    build: buildSchema.optional(),
     skin_tone: z.string().min(1).max(60).optional(),
     personal_style: z.string().min(1).max(80).optional(),
     social_persona: z.string().min(1).max(80).optional(),
     weekend_type: z.string().min(1).max(80).optional(),
     afternoon_activity: z.string().min(1).max(80).optional(),
     habits: z.string().min(1).max(120).optional(),
-    conflict_style: z.string().min(1).max(120).optional(),
-    relationship_goal: z.string().min(1).max(120).optional(),
+    conflict_style: conflictStyleSchema.optional(),
+    relationship_goal: relationshipGoalSchema.optional(),
     green_flag: z.string().min(1).max(200).optional(),
     instagram: z.string().min(1).max(120).optional(),
     tiktok: z.string().min(1).max(120).optional(),
@@ -173,7 +221,7 @@ const completeOnboardingSchema = z.object({
   profile: profileSchemaLenient,
   preferences: preferencesSchemaLenient,
   focuses: z.array(z.string()).max(2).optional(),
-  preferred_builds: z.array(z.string()).min(1).max(7).optional(),
+  preferred_builds: z.array(buildSchema).min(1).max(7).optional(),
   photos: z
     .array(
       z.object({
@@ -190,10 +238,7 @@ export async function upsertProfile(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  // Pre-convert height object to total inches before schema validation
-  const body = { ...req.body };
-  if (body.height != null) body.height = heightToInches(body.height);
-  const input = profileSchema.parse(body);
+  const input = profileSchema.parse(normalizeProfilePayload(req.body));
   const profile = await profileService.upsertProfile(userId, input);
   return res.status(201).json({
     profile: {
@@ -220,13 +265,7 @@ export async function upsertPreferences(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
 
-  // Pre-convert height objects to total inches before schema validation
-  const body = { ...req.body };
-  if (body.preferred_min_height != null)
-    body.preferred_min_height = heightToInches(body.preferred_min_height);
-  if (body.preferred_max_height != null)
-    body.preferred_max_height = heightToInches(body.preferred_max_height);
-  const input = preferencesSchema.parse(body);
+  const input = preferencesSchema.parse(normalizePreferencesPayload(req.body));
   const preferences = await profileService.upsertPreferences(userId, input);
   return res.status(201).json({
     preferences: {
@@ -491,14 +530,7 @@ export async function completeOnboarding(req, res) {
       });
     }
 
-    // 6. Mark onboarding as completed
-    const { error: updateErr } = await supabase
-      .from("users")
-      .update({ onboarding_completed: true, current_step: 7 })
-      .eq("id", userId);
-
-    if (updateErr)
-      throw new ApiError(500, "Failed to mark onboarding complete");
+    await profileService.refreshOnboardingCompletion(userId);
 
     return res
       .status(201)

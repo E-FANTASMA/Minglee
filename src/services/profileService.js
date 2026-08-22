@@ -1,6 +1,38 @@
 import { supabase } from "../supabase.js";
 import { ApiError } from "../utils/apiError.js";
 
+function hasText(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function hasNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isUserReadyForMatching({ user, profile, preferences, builds }) {
+  return Boolean(
+    user &&
+      hasText(user.name) &&
+      hasText(user.whatsapp_number) &&
+      profile &&
+      hasText(profile.gender) &&
+      hasNumber(profile.age) &&
+      hasText(profile.build) &&
+      hasText(profile.skin_tone) &&
+      hasNumber(profile.height) &&
+      hasText(profile.relationship_goal) &&
+      hasText(profile.conflict_style) &&
+      (hasText(profile.instagram) || hasText(profile.tiktok)) &&
+      preferences &&
+      hasNumber(preferences.preferred_min_age) &&
+      hasNumber(preferences.preferred_max_age) &&
+      hasNumber(preferences.preferred_min_height) &&
+      hasNumber(preferences.preferred_max_height) &&
+      Array.isArray(builds) &&
+      builds.length > 0,
+  );
+}
+
 export async function upsertProfile(userId, profileInput) {
   const payload = {
     user_id: userId,
@@ -18,6 +50,7 @@ export async function upsertProfile(userId, profileInput) {
       message: error.message,
       details: error.details,
     });
+  await refreshOnboardingCompletion(userId);
   return data;
 }
 
@@ -38,6 +71,7 @@ export async function upsertPreferences(userId, prefsInput) {
       message: error.message,
       details: error.details,
     });
+  await refreshOnboardingCompletion(userId);
   return data;
 }
 
@@ -97,7 +131,9 @@ export async function replacePreferredBuilds(userId, builds) {
       message: error.message,
       details: error.details,
     });
-  return data ?? [];
+  const savedBuilds = data ?? [];
+  await refreshOnboardingCompletion(userId);
+  return savedBuilds;
 }
 
 export async function replacePhotos(userId, photos) {
@@ -130,21 +166,71 @@ export async function replacePhotos(userId, photos) {
       message: error.message,
       details: error.details,
     });
-  await markOnboardingComplete(userId);
   return data ?? [];
 }
 
-async function markOnboardingComplete(userId) {
+export async function refreshOnboardingCompletion(userId) {
+  const [
+    { data: user, error: userErr },
+    { data: profile, error: profileErr },
+    { data: preferences, error: prefErr },
+    { data: builds, error: buildErr },
+  ] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id,name,whatsapp_number,current_step")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase
+      .from("user_profiles")
+      .select(
+        "gender,age,build,skin_tone,height,relationship_goal,conflict_style,instagram,tiktok",
+      )
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("preferences")
+      .select(
+        "preferred_min_age,preferred_max_age,preferred_min_height,preferred_max_height",
+      )
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("preferred_builds")
+      .select("preferred_build")
+      .eq("user_id", userId),
+  ]);
+
+  const anyErr = userErr || profileErr || prefErr || buildErr;
+  if (anyErr) {
+    throw new ApiError(400, "Unable to refresh onboarding status", {
+      message: anyErr.message,
+      details: anyErr.details,
+    });
+  }
+
+  const onboardingCompleted = isUserReadyForMatching({
+    user,
+    profile,
+    preferences,
+    builds,
+  });
+
+  const updatePayload = {
+    onboarding_completed: onboardingCompleted,
+  };
+
+  if (onboardingCompleted) {
+    updatePayload.current_step = 0;
+  }
+
   const { error } = await supabase
     .from("users")
-    .update({
-      onboarding_completed: true,
-      current_step: 0,
-    })
+    .update(updatePayload)
     .eq("id", userId);
 
   if (error) {
-    throw new ApiError(400, "Unable to update onboarding status", {
+    throw new ApiError(400, "Unable to update onboarding completion", {
       message: error.message,
       details: error.details,
     });

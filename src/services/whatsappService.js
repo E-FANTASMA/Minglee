@@ -58,7 +58,7 @@ export const processIncomingMessage = async (payload) => {
           console.log(`Received WhatsApp message from ${from}: ${textBody}`);
           
           // Reply with a basic hi
-          await sendWhatsAppMessage(from, "Hi");
+          await sendWhatsAppMessage(from, "Welcome to Minglee. Keep an eye out for the Friday Drop!");
         }
       }
     }

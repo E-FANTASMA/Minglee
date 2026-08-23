@@ -1,29 +1,42 @@
 import { z } from "zod";
 
+const buildSchema = z.enum([
+  "Slim",
+  "Petite",
+  "Athletic",
+  "Average",
+  "Muscular",
+  "Curvy",
+  "Plus-size",
+]);
+
+const conflictStyleSchema = z.enum([
+  "Talk it out immediately",
+  "Need space then talk",
+  "Let it blow over",
+]);
+
+const relationshipGoalSchema = z.enum([
+  "Marriage bound",
+  "Long-term",
+  "Short-term",
+  "Just looking for fun",
+]);
+
 export const profileSchema = z
   .object({
     gender: z.string().min(1).max(40).optional(),
     age: z.number().int().min(18).optional(),
     height: z.number().int().min(36).max(96).optional(),
-    build: z
-      .enum([
-        "Slim",
-        "Petite",
-        "Athletic",
-        "Average",
-        "Muscular",
-        "Curvy",
-        "Plus-size",
-      ])
-      .optional(),
+    build: buildSchema.optional(),
     skin_tone: z.string().min(1).max(60).optional(),
     personal_style: z.string().min(1).max(80).optional(),
     social_persona: z.string().min(1).max(80).optional(),
     weekend_type: z.string().min(1).max(80).optional(),
     afternoon_activity: z.string().min(1).max(80).optional(),
     habits: z.string().min(1).max(120).optional(),
-    conflict_style: z.string().min(1).max(120).optional(),
-    relationship_goal: z.string().min(1).max(120).optional(),
+    conflict_style: conflictStyleSchema.optional(),
+    relationship_goal: relationshipGoalSchema.optional(),
     green_flag: z.string().min(1).max(200).optional(),
     instagram: z.string().min(1).max(120).optional(),
     tiktok: z.string().min(1).max(120).optional(),
@@ -84,20 +97,7 @@ export const focusesSchema = z
 
 export const preferredBuildsSchema = z
   .object({
-    builds: z
-      .array(
-        z.enum([
-          "Slim",
-          "Petite",
-          "Athletic",
-          "Average",
-          "Muscular",
-          "Curvy",
-          "Plus-size",
-        ]),
-      )
-      .min(1)
-      .max(7),
+    builds: z.array(buildSchema).min(1).max(7),
   })
   .strict();
 

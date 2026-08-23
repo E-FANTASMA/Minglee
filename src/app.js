@@ -17,7 +17,12 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json({ limit: "128kb" }));
+  app.use(express.json({
+    limit: "128kb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    }
+  }));
 
   app.use(routes);
   app.use(errorHandler);

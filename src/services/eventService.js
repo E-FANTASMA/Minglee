@@ -1,131 +1,138 @@
 import { supabase } from "../supabase.js";
 import { ApiError } from "../utils/apiError.js";
 
-/**
- * Record that a user is attending / going to an event
- */
-export async function registerAttendance({ userId, eventId, eventName, eventPicture, eventDay, attendeeNotes, source }) {
-  if (!userId) {
-    throw new ApiError(400, "User ID is required to register for an event");
+function mapEvent(event) {
+  return {
+    id: event.id,
+    event_name: event.event_name,
+    event_picture: event.event_picture,
+    event_day: event.event_day,
+    created_at: event.created_at ?? null,
+    attendee_count: Number(event.attendee_count ?? 0),
+  };
+}
+
+export async function createEvent(input) {
+  const { data, error } = await supabase
+    .from("events")
+    .insert(input)
+    .select("id,event_name,event_picture,event_day,created_at")
+    .single();
+
+  if (error) {
+    throw new ApiError(400, "Unable to create event", {
+      message: error.message,
+      details: error.details,
+    });
   }
 
-  // 1. Resolve DB event record (find by ID if valid UUID, or find by event_name, or create if not present)
-  let dbEventId = null;
+  return mapEvent({ ...data, attendee_count: 0 });
+}
 
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-  if (isUuid) {
-    const { data: existingEvent } = await supabase
-      .from("events")
-      .select("id")
-      .eq("id", eventId)
-      .maybeSingle();
-    if (existingEvent) {
-      dbEventId = existingEvent.id;
-    }
+export async function listEvents() {
+  const { data: events, error } = await supabase
+    .from("events")
+    .select("id,event_name,event_picture,event_day,created_at")
+    .order("event_day", { ascending: true });
+
+  if (error) {
+    throw new ApiError(400, "Unable to fetch events", {
+      message: error.message,
+      details: error.details,
+    });
   }
 
-  if (!dbEventId && eventName) {
-    const { data: existingByName } = await supabase
-      .from("events")
-      .select("id")
-      .ilike("event_name", eventName.trim())
-      .maybeSingle();
-    if (existingByName) {
-      dbEventId = existingByName.id;
-    }
-  }
+  const safeEvents = events ?? [];
 
-  // If the event is not yet in the DB events table, insert it
-  if (!dbEventId) {
-    const nameToInsert = eventName || "Mingle Event";
-    const pictureToInsert = eventPicture || "/assets/wet-wars.jpeg";
-    const dayToInsert = eventDay || "2026-08-28";
-
-    const { data: newEvent, error: createEventErr } = await supabase
-      .from("events")
-      .insert({
-        event_name: nameToInsert,
-        event_picture: pictureToInsert,
-        event_day: dayToInsert,
-      })
-      .select("id")
-      .single();
-
-    if (createEventErr) {
-      throw new ApiError(400, "Unable to register event", {
-        message: createEventErr.message,
-        details: createEventErr.details,
-      });
-    }
-    dbEventId = newEvent.id;
-  }
-
-  // 2. Check if user is already marked as attending
-  const { data: existingAttendee } = await supabase
+  const { data: attendees, error: attendeeError } = await supabase
     .from("event_attendees")
-    .select("*")
-    .eq("event_id", dbEventId)
+    .select("event_id");
+
+  if (attendeeError) {
+    throw new ApiError(400, "Unable to fetch event attendees", {
+      message: attendeeError.message,
+      details: attendeeError.details,
+    });
+  }
+
+  const attendeeCounts = new Map();
+  for (const attendee of attendees ?? []) {
+    const currentCount = attendeeCounts.get(attendee.event_id) ?? 0;
+    attendeeCounts.set(attendee.event_id, currentCount + 1);
+  }
+
+  return safeEvents.map((event) =>
+    mapEvent({
+      ...event,
+      attendee_count: attendeeCounts.get(event.id) ?? 0,
+    }),
+  );
+}
+
+export async function registerForEvent({ eventId, userId }) {
+  const { data: event, error: eventError } = await supabase
+    .from("events")
+    .select("id,event_name,event_picture,event_day,created_at")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (eventError) {
+    throw new ApiError(400, "Unable to check event", {
+      message: eventError.message,
+      details: eventError.details,
+    });
+  }
+
+  if (!event) {
+    throw new ApiError(404, "Event not found");
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("event_attendees")
+    .select("event_id,user_id")
+    .eq("event_id", eventId)
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (existingAttendee) {
-    return {
-      status: "going",
-      message: "You're already on the guestlist for this event!",
-      attendee: existingAttendee,
-    };
+  if (existingError) {
+    throw new ApiError(400, "Unable to check registration", {
+      message: existingError.message,
+      details: existingError.details,
+    });
   }
 
-  // 3. Insert into event_attendees (recording that user is going to this event)
-  const { data: attendeeRecord, error: attendeeErr } = await supabase
-    .from("event_attendees")
-    .insert({
-      event_id: dbEventId,
-      user_id: userId,
-    })
-    .select("*")
-    .single();
+  if (existing) {
+    throw new ApiError(409, "User already registered for this event");
+  }
 
-  if (attendeeErr) {
-    throw new ApiError(400, "Unable to record attendance", {
-      message: attendeeErr.message,
-      details: attendeeErr.details,
+  const { error: insertError } = await supabase
+    .from("event_attendees")
+    .insert({ event_id: eventId, user_id: userId });
+
+  if (insertError) {
+    throw new ApiError(400, "Unable to register for event", {
+      message: insertError.message,
+      details: insertError.details,
+    });
+  }
+
+  const { count, error: countError } = await supabase
+    .from("event_attendees")
+    .select("user_id", { count: "exact", head: true })
+    .eq("event_id", eventId);
+
+  if (countError) {
+    throw new ApiError(400, "Unable to count event attendees", {
+      message: countError.message,
+      details: countError.details,
     });
   }
 
   return {
-    status: "going",
-    message: "Attendance confirmed! You are marked as going to this event.",
-    attendee: attendeeRecord,
+    event: mapEvent({ ...event, attendee_count: count ?? 0 }),
+    registration: {
+      event_id: eventId,
+      user_id: userId,
+    },
   };
-}
-
-/**
- * Get attendees for an event
- */
-export async function getEventAttendees(eventId) {
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-  let resolvedEventId = isUuid ? eventId : null;
-
-  if (!resolvedEventId) {
-    const { data: eventByName } = await supabase
-      .from("events")
-      .select("id")
-      .ilike("event_name", eventId)
-      .maybeSingle();
-    resolvedEventId = eventByName?.id;
-  }
-
-  if (!resolvedEventId) return [];
-
-  const { data, error } = await supabase
-    .from("event_attendees")
-    .select("created_at, users(id, name, whatsapp_number, onboarding_completed)")
-    .eq("event_id", resolvedEventId);
-
-  if (error) {
-    throw new ApiError(400, "Unable to fetch attendees", { message: error.message });
-  }
-
-  return data ?? [];
 }

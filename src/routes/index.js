@@ -12,5 +12,3 @@ routes.use("/auth", authRoutes);
 routes.use("/events", eventRoutes);
 routes.use("/whatsapp", whatsappRoutes);
 routes.use("/", onboardingRoutes);
-
-

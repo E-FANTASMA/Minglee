@@ -44,7 +44,7 @@ Response:
 ## Events
 
 ### `GET /events`
-Fetch all events with attendee counts.
+Fetch all events with attendee counts and financial payout statistics for Web & Mobile.
 
 Response:
 ```json
@@ -55,8 +55,12 @@ Response:
       "event_name": "Minglee Hangout",
       "event_picture": "https://example.com/event.jpg",
       "event_day": "2026-09-10",
+      "ticket_price": 5000,
       "created_at": "2026-08-22T10:00:00.000Z",
-      "attendee_count": 42
+      "attendee_count": 42,
+      "paid_attendees_count": 35,
+      "total_revenue": 175000,
+      "host_payout_amount": 175000
     }
   ]
 }
@@ -70,7 +74,8 @@ Request:
 {
   "event_name": "Minglee Hangout",
   "event_picture": "https://example.com/event.jpg",
-  "event_day": "2026-09-10"
+  "event_day": "2026-09-10",
+  "ticket_price": 5000
 }
 ```
 
@@ -82,14 +87,18 @@ Response:
     "event_name": "Minglee Hangout",
     "event_picture": "https://example.com/event.jpg",
     "event_day": "2026-09-10",
+    "ticket_price": 5000,
     "created_at": "2026-08-22T10:00:00.000Z",
-    "attendee_count": 0
+    "attendee_count": 0,
+    "paid_attendees_count": 0,
+    "total_revenue": 0,
+    "host_payout_amount": 0
   }
 }
 ```
 
 ### `POST /events/register`
-Register the signed-in user for an existing event.
+Register the signed-in user for an existing event (for free events).
 
 Headers:
 - `Authorization: Bearer <access_token>`
@@ -109,17 +118,24 @@ Response:
     "event_name": "Minglee Hangout",
     "event_picture": "https://example.com/event.jpg",
     "event_day": "2026-09-10",
+    "ticket_price": 0,
     "created_at": "2026-08-22T10:00:00.000Z",
-    "attendee_count": 43
+    "attendee_count": 43,
+    "paid_attendees_count": 0,
+    "total_revenue": 0,
+    "host_payout_amount": 0
   },
   "registration": {
     "event_id": "uuid",
-    "user_id": "uuid"
+    "user_id": "uuid",
+    "ticket_code": "RSVP-0123456789AB"
   }
 }
 ```
 
 If the same user tries to register for the same event twice, the API returns `409 Conflict`.
+Free-event registrations issue a valid ticket; paid events must use ticket checkout.
+
 
 ### `POST /auth/login`
 Request:

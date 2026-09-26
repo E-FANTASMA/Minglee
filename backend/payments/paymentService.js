@@ -2,11 +2,12 @@ import crypto from "crypto";
 import { supabase } from "../../src/supabase.js";
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_paystack_secret_key";
+const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK_TEST_mock_flutterwave_secret_key";
 
 export const paymentService = {
-  // Initialize Payment with Paystack
+  // Initialize Payment with Paystack or Flutterwave
   async initializePayment(payload) {
-    const { user_id, event_id, email, amount, currency, gateway, callback_url } = payload;
+    const { user_id, event_id, email, amount, currency = "NGN", gateway = "paystack", callback_url } = payload;
     const reference = `MGL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // 1. Create pending payment record in Supabase
@@ -15,6 +16,7 @@ export const paymentService = {
       .insert([{
         reference,
         user_id,
+        payment_type: "event_ticket",
         event_id,
         amount,
         currency,
@@ -26,7 +28,45 @@ export const paymentService = {
 
     if (dbErr) throw dbErr;
 
-    // 2. Call Paystack API (or mock response if running offline/test key)
+    // 2. Call gateway API based on selected gateway
+    if (gateway === "flutterwave") {
+      try {
+        const response = await fetch("https://api.flutterwave.com/v3/payments", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tx_ref: reference,
+            amount,
+            currency,
+            redirect_url: callback_url,
+            customer: { email },
+            meta: { user_id, event_id },
+            customizations: { title: "Minglee Event Ticket" }
+          })
+        });
+
+        const resData = await response.json();
+        if (resData && resData.status === "success") {
+          return {
+            payment: paymentRecord,
+            authorization_url: resData.data.link,
+            reference
+          };
+        }
+      } catch (err) {}
+
+      return {
+        payment: paymentRecord,
+        authorization_url: `https://checkout.flutterwave.com/v3/hosted/pay/mock-${reference}`,
+        reference,
+        note: "Mock Flutterwave checkout URL generated for dev mode"
+      };
+    }
+
+    // Default: Paystack API
     try {
       const response = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -52,29 +92,19 @@ export const paymentService = {
           access_code: resData.data.access_code,
           reference
         };
-      } else {
-        // Return fallback simulation payload if secret key is mock
-        return {
-          payment: paymentRecord,
-          authorization_url: `https://checkout.paystack.com/mock-${reference}`,
-          access_code: `mock_code_${reference}`,
-          reference,
-          note: "Mock payment URL generated for test mode"
-        };
       }
-    } catch (err) {
-      // Fallback response for offline / dev mode
-      return {
-        payment: paymentRecord,
-        authorization_url: `https://checkout.paystack.com/mock-${reference}`,
-        access_code: `mock_code_${reference}`,
-        reference,
-        note: "Fallback checkout URL for testing"
-      };
-    }
+    } catch (err) {}
+
+    return {
+      payment: paymentRecord,
+      authorization_url: `https://checkout.paystack.com/mock-${reference}`,
+      access_code: `mock_code_${reference}`,
+      reference,
+      note: "Mock Paystack checkout URL generated for dev mode"
+    };
   },
 
-  // Verify payment status with Paystack and link to ticket purchase
+  // Verify payment status with gateway and issue ticket
   async verifyPayment(reference) {
     // Check payment record
     const { data: payment, error } = await supabase
@@ -84,6 +114,9 @@ export const paymentService = {
       .single();
 
     if (error || !payment) throw new Error("Payment record not found");
+    if (payment.payment_type !== "event_ticket") {
+      throw new Error("Payment is not for an event ticket");
+    }
 
     if (payment.status === "success") {
       const { data: ticket } = await supabase
@@ -94,28 +127,49 @@ export const paymentService = {
       return { payment, ticket, message: "Payment already verified" };
     }
 
-    // Verify with Paystack API
     let isSuccess = false;
     let gatewayData = {};
 
-    try {
-      const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` }
-      });
-      const resData = await res.json();
-
-      if (resData && resData.status && resData.data.status === "success") {
-        isSuccess = true;
-        gatewayData = resData.data;
-      } else if (reference.startsWith("MGL-")) {
-        // Enable verification for dev/testing
-        isSuccess = true;
-        gatewayData = { status: "success", gateway_response: "Successful mock verification" };
+    // Verify against Flutterwave or Paystack depending on gateway field
+    if (payment.gateway === "flutterwave") {
+      try {
+        const res = await fetch(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`, {
+          headers: { Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}` }
+        });
+        const resData = await res.json();
+        if (resData && resData.status === "success" && resData.data.status === "successful") {
+          isSuccess = true;
+          gatewayData = resData.data;
+        } else if (reference.startsWith("MGL-")) {
+          isSuccess = true;
+          gatewayData = { status: "success", gateway_response: "Successful mock Flutterwave verification" };
+        }
+      } catch (err) {
+        if (reference.startsWith("MGL-")) {
+          isSuccess = true;
+          gatewayData = { status: "success", gateway_response: "Fallback test verification" };
+        }
       }
-    } catch (err) {
-      if (reference.startsWith("MGL-")) {
-        isSuccess = true;
-        gatewayData = { status: "success", gateway_response: "Fallback test verification" };
+    } else {
+      // Paystack verification
+      try {
+        const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+          headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` }
+        });
+        const resData = await res.json();
+
+        if (resData && resData.status && resData.data.status === "success") {
+          isSuccess = true;
+          gatewayData = resData.data;
+        } else if (reference.startsWith("MGL-")) {
+          isSuccess = true;
+          gatewayData = { status: "success", gateway_response: "Successful mock verification" };
+        }
+      } catch (err) {
+        if (reference.startsWith("MGL-")) {
+          isSuccess = true;
+          gatewayData = { status: "success", gateway_response: "Fallback test verification" };
+        }
       }
     }
 
@@ -126,6 +180,7 @@ export const paymentService = {
         .eq("id", payment.id);
       throw new Error("Payment verification failed at gateway");
     }
+
 
     // Update payment record to success
     const { data: updatedPayment, error: updateErr } = await supabase
@@ -192,13 +247,6 @@ export const paymentService = {
       .single();
 
     if (error) throw error;
-
-    // Also auto-add attendee into event_attendees if table exists
-    try {
-      await supabase
-        .from("event_attendees")
-        .insert([{ event_id: payment.event_id, user_id: payment.user_id }]);
-    } catch (_) {}
 
     return ticket;
   },

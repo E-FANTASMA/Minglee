@@ -14,7 +14,8 @@ export async function fetchEligibleUsers() {
   const { data: users, error: userErr } = await supabase
     .from("users")
     .select("id")
-    .eq("onboarding_completed", true);
+    .eq("onboarding_completed", true)
+    .eq("ready_to_be_matched", true);
 
   if (userErr) throw new ApiError(500, "Error fetching users for matching", { details: userErr });
   if (!users || users.length === 0) return { males: [], females: [] };

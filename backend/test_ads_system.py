@@ -42,8 +42,8 @@ async def run_tests():
     user_id = uuid.uuid4()
     admin_id = uuid.uuid4()
 
-    user = User(id=user_id, email="advertiser@minglee.com", full_name="Jane Advertiser", role="user")
-    admin = User(id=admin_id, email="admin@minglee.com", full_name="Super Admin", role="admin")
+    user = User(id=user_id, name="Jane Advertiser", role="user")
+    admin = User(id=admin_id, name="Super Admin", role="admin")
     db.add(user)
     db.add(admin)
     db.commit()

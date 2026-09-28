@@ -5,28 +5,42 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE,
-  full_name VARCHAR(255),
   name VARCHAR(255),
   whatsapp_number VARCHAR(50),
   password_hash VARCHAR(255),
   role VARCHAR(50) NOT NULL DEFAULT 'user',
+  ready_to_be_matched BOOLEAN NOT NULL DEFAULT TRUE,
   is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
   flag_reason TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'user';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS ready_to_be_matched BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS flag_reason TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'full_name'
+  ) THEN
+    UPDATE public.users
+    SET name = COALESCE(NULLIF(BTRIM(name), ''), full_name)
+    WHERE full_name IS NOT NULL AND (name IS NULL OR BTRIM(name) = '');
+  END IF;
+END;
+$$;
+
+ALTER TABLE public.users DROP COLUMN IF EXISTS email;
+ALTER TABLE public.users DROP COLUMN IF EXISTS full_name;
 
 CREATE TABLE IF NOT EXISTS public.events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -241,7 +241,7 @@ export async function getMeProfile(userId) {
   const { data: user, error: userErr } = await supabase
     .from("users")
     .select(
-      "id,name,whatsapp_number,role,onboarding_completed,current_step,created_at,updated_at",
+      "id,name,whatsapp_number,role,ready_to_be_matched,onboarding_completed,current_step,created_at,updated_at",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -296,4 +296,20 @@ export async function getMeProfile(userId) {
     builds: builds ?? [],
     photos: photos ?? [],
   };
+}
+
+export async function updateMatchingPreference(userId, readyToBeMatched) {
+  const { data, error } = await supabase
+    .from("users")
+    .update({ ready_to_be_matched: readyToBeMatched })
+    .eq("id", userId)
+    .select("ready_to_be_matched")
+    .single();
+
+  if (error)
+    throw new ApiError(400, "Unable to update matching preference", {
+      message: error.message,
+      details: error.details,
+    });
+  return data;
 }

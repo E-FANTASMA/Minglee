@@ -1,5 +1,6 @@
 import { supabase } from "../supabase.js";
 import { ApiError } from "../utils/apiError.js";
+import { randomUUID } from "node:crypto";
 
 function mapEvent(event) {
   return {
@@ -7,8 +8,12 @@ function mapEvent(event) {
     event_name: event.event_name,
     event_picture: event.event_picture,
     event_day: event.event_day,
+    ticket_price: Number(event.ticket_price ?? 0),
     created_at: event.created_at ?? null,
     attendee_count: Number(event.attendee_count ?? 0),
+    paid_attendees_count: Number(event.paid_attendees_count ?? 0),
+    total_revenue: Number(event.total_revenue ?? 0),
+    host_payout_amount: Number(event.host_payout_amount ?? 0),
   };
 }
 
@@ -16,7 +21,7 @@ export async function createEvent(input) {
   const { data, error } = await supabase
     .from("events")
     .insert(input)
-    .select("id,event_name,event_picture,event_day,created_at")
+    .select("id,event_name,event_picture,event_day,ticket_price,created_at")
     .single();
 
   if (error) {
@@ -26,13 +31,13 @@ export async function createEvent(input) {
     });
   }
 
-  return mapEvent({ ...data, attendee_count: 0 });
+  return mapEvent({ ...data, attendee_count: 0, paid_attendees_count: 0, total_revenue: 0, host_payout_amount: 0 });
 }
 
 export async function listEvents() {
   const { data: events, error } = await supabase
     .from("events")
-    .select("id,event_name,event_picture,event_day,created_at")
+    .select("id,event_name,event_picture,event_day,ticket_price,created_at")
     .order("event_day", { ascending: true });
 
   if (error) {
@@ -44,8 +49,9 @@ export async function listEvents() {
 
   const safeEvents = events ?? [];
 
+  // Fetch all attendees count per event
   const { data: attendees, error: attendeeError } = await supabase
-    .from("event_attendees")
+    .from("v_event_attendees")
     .select("event_id");
 
   if (attendeeError) {
@@ -61,18 +67,47 @@ export async function listEvents() {
     attendeeCounts.set(attendee.event_id, currentCount + 1);
   }
 
-  return safeEvents.map((event) =>
-    mapEvent({
+  // Fetch successful payment financial records per event
+  const { data: payments, error: paymentError } = await supabase
+    .from("payments")
+    .select("event_id, amount, status")
+    .eq("payment_type", "event_ticket")
+    .eq("status", "success");
+
+  if (paymentError) {
+    throw new ApiError(400, "Unable to fetch event payments", {
+      message: paymentError.message,
+      details: paymentError.details,
+    });
+  }
+
+  const paidCounts = new Map();
+  const revenueTotals = new Map();
+
+  for (const payment of payments ?? []) {
+    const count = paidCounts.get(payment.event_id) ?? 0;
+    paidCounts.set(payment.event_id, count + 1);
+
+    const sum = revenueTotals.get(payment.event_id) ?? 0;
+    revenueTotals.set(payment.event_id, sum + Number(payment.amount || 0));
+  }
+
+  return safeEvents.map((event) => {
+    const totalRev = revenueTotals.get(event.id) ?? 0;
+    return mapEvent({
       ...event,
       attendee_count: attendeeCounts.get(event.id) ?? 0,
-    }),
-  );
+      paid_attendees_count: paidCounts.get(event.id) ?? 0,
+      total_revenue: totalRev,
+      host_payout_amount: totalRev, // Total payout owed to event hosters
+    });
+  });
 }
 
 export async function registerForEvent({ eventId, userId }) {
   const { data: event, error: eventError } = await supabase
     .from("events")
-    .select("id,event_name,event_picture,event_day,created_at")
+    .select("id,event_name,event_picture,event_day,ticket_price,created_at")
     .eq("id", eventId)
     .maybeSingle();
 
@@ -87,8 +122,12 @@ export async function registerForEvent({ eventId, userId }) {
     throw new ApiError(404, "Event not found");
   }
 
+  if (Number(event.ticket_price) > 0) {
+    throw new ApiError(400, "Paid events require ticket checkout");
+  }
+
   const { data: existing, error: existingError } = await supabase
-    .from("event_attendees")
+    .from("v_event_attendees")
     .select("event_id,user_id")
     .eq("event_id", eventId)
     .eq("user_id", userId)
@@ -105,11 +144,21 @@ export async function registerForEvent({ eventId, userId }) {
     throw new ApiError(409, "User already registered for this event");
   }
 
-  const { error: insertError } = await supabase
-    .from("event_attendees")
-    .insert({ event_id: eventId, user_id: userId });
+  const { data: ticket, error: insertError } = await supabase
+    .from("tickets")
+    .insert({
+      event_id: eventId,
+      user_id: userId,
+      ticket_code: `RSVP-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+      status: "valid",
+    })
+    .select("id,event_id,user_id,ticket_code,status,issued_at")
+    .single();
 
   if (insertError) {
+    if (insertError.code === "23505") {
+      throw new ApiError(409, "User already registered for this event");
+    }
     throw new ApiError(400, "Unable to register for event", {
       message: insertError.message,
       details: insertError.details,
@@ -117,7 +166,7 @@ export async function registerForEvent({ eventId, userId }) {
   }
 
   const { count, error: countError } = await supabase
-    .from("event_attendees")
+    .from("v_event_attendees")
     .select("user_id", { count: "exact", head: true })
     .eq("event_id", eventId);
 
@@ -133,6 +182,8 @@ export async function registerForEvent({ eventId, userId }) {
     registration: {
       event_id: eventId,
       user_id: userId,
+      ticket_code: ticket.ticket_code,
     },
   };
 }
+

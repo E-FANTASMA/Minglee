@@ -5,6 +5,7 @@ export const createEventSchema = z
     event_name: z.string().trim().min(1).max(160),
     event_picture: z.string().trim().url(),
     event_day: z.string().trim().date(),
+    ticket_price: z.number().min(0).optional().default(0),
   })
   .strict();
 
@@ -13,3 +14,4 @@ export const registerForEventSchema = z
     event_id: z.string().trim().uuid(),
   })
   .strict();
+

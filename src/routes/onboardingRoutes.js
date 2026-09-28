@@ -64,3 +64,7 @@ onboardingRoutes.get(
   "/me/profile",
   asyncHandler(onboardingController.getMeProfile),
 );
+onboardingRoutes.patch(
+  "/matching-preference",
+  asyncHandler(onboardingController.updateMatchingPreference),
+);

@@ -35,8 +35,8 @@ async def run_frontend_simulator():
     advertiser_id = uuid.uuid4()
     admin_id = uuid.uuid4()
 
-    advertiser = User(id=advertiser_id, email="merchant@brand.com", full_name="Sparkle Events Co.", role="user")
-    admin = User(id=admin_id, email="admin@minglee.com", full_name="Minglee Platform Admin", role="admin")
+    advertiser = User(id=advertiser_id, name="Sparkle Events Co.", role="user")
+    admin = User(id=admin_id, name="Minglee Platform Admin", role="admin")
     db.add(advertiser)
     db.add(admin)
     db.commit()

@@ -62,8 +62,6 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    email = Column(String(255), unique=True, nullable=True, index=True)
-    full_name = Column(String(255), nullable=True)
     name = Column(String(255), nullable=True)
     whatsapp_number = Column(String(50), nullable=True)
     password_hash = Column(String(255), nullable=True)

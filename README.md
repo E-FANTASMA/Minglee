@@ -16,6 +16,8 @@ Important: keep `.env` private (it is ignored by `backend/.gitignore`).
 
 ## Supabase SQL
 
+The canonical schema and upgrade SQL is in `backend/schema.sql`. Review and apply it manually in Supabase; the application does not execute schema migrations on startup. Other SQL schema files are retained as historical references and should not be applied separately.
+
 This backend expects your Postgres schema to include a `public.users` table with:
 - `id uuid primary key default gen_random_uuid()`
 - `name text not null`

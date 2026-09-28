@@ -8,7 +8,7 @@ export async function signup({ name, whatsapp_number, password }) {
   const { data, error } = await supabase
     .from("users")
     .insert({ name, whatsapp_number, password_hash: passwordHash })
-    .select("id,name,whatsapp_number,role,onboarding_completed,current_step,created_at,updated_at")
+    .select("id,name,whatsapp_number,role,ready_to_be_matched,onboarding_completed,current_step,created_at,updated_at")
     .single();
 
   if (error) throw new ApiError(400, "Unable to create user", { message: error.message, details: error.details });
@@ -18,7 +18,7 @@ export async function signup({ name, whatsapp_number, password }) {
 export async function login({ whatsapp_number, password }) {
   const { data: user, error } = await supabase
     .from("users")
-    .select("id,name,whatsapp_number,password_hash,role,onboarding_completed,current_step,created_at,updated_at")
+    .select("id,name,whatsapp_number,password_hash,role,ready_to_be_matched,onboarding_completed,current_step,created_at,updated_at")
     .eq("whatsapp_number", whatsapp_number)
     .maybeSingle();
 

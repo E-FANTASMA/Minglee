@@ -355,6 +355,7 @@ Response:
     "name": "Jane",
     "whatsapp_number": "+2348012345678",
     "role": "user", 
+    "ready_to_be_matched": true,
     "onboarding_completed": true,
     "current_step": 0,
     "created_at": "2026-05-09T00:00:00.000Z",
@@ -377,4 +378,17 @@ Response:
     { "image_url": "https://example.com/1.jpg", "photo_type": "Profile", "upload_order": 1 }
   ]
 }
+```
+
+### `PATCH /matching-preference`
+Enable or disable inclusion in upcoming matching cycles. The user is identified from the authenticated session.
+
+Request:
+```json
+{ "ready_to_be_matched": false }
+```
+
+Response:
+```json
+{ "ready_to_be_matched": false }
 ```

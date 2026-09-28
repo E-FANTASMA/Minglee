@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional, List
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 try:
     from pydantic import model_validator
@@ -16,8 +16,7 @@ from app.models import AdType, AdStatus
 # User Schemas
 # -----------------------------------------------------------------------------
 class UserBase(BaseModel):
-    email: str
-    full_name: str
+    name: Optional[str] = None
 
 class UserCreate(UserBase):
     pass

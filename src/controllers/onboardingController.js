@@ -234,6 +234,10 @@ const completeOnboardingSchema = z.object({
     .optional(),
 });
 
+const matchingPreferenceSchema = z
+  .object({ ready_to_be_matched: z.boolean() })
+  .strict();
+
 export async function upsertProfile(req, res) {
   const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "Unauthorized");
@@ -338,6 +342,7 @@ export async function getMeProfile(req, res) {
       name: data.user.name,
       whatsapp_number: data.user.whatsapp_number,
       role: data.user.role,
+      ready_to_be_matched: data.user.ready_to_be_matched,
       onboarding_completed: data.user.onboarding_completed,
       current_step: data.user.current_step,
       created_at: data.user.created_at,
@@ -382,6 +387,18 @@ export async function getMeProfile(req, res) {
       upload_order: p.upload_order,
     })),
   });
+}
+
+export async function updateMatchingPreference(req, res) {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  const input = matchingPreferenceSchema.parse(req.body);
+  const preference = await profileService.updateMatchingPreference(
+    userId,
+    input.ready_to_be_matched,
+  );
+  return res.json(preference);
 }
 
 export async function uploadPhoto(req, res) {

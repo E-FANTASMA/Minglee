@@ -8,6 +8,7 @@ export const notificationRoutes = Router();
 notificationRoutes.use(authMiddleware);
 
 // Notifications Endpoints
+notificationRoutes.post("/subscribe", notificationController.subscribe);
 notificationRoutes.get("/popups", notificationController.getPopups);
 notificationRoutes.get("/popups/active", notificationController.getPopups);
 notificationRoutes.get("/unread", notificationController.getUnreadNotifications);

@@ -6,6 +6,10 @@ function mapEvent(event) {
   return {
     id: event.id,
     event_name: event.event_name,
+    event_description: event.event_description || event.description || "",
+    ticket_type: event.ticket_type || "Regular",
+    location: event.location || "Campus",
+    status: event.status || "approved",
     event_picture: event.event_picture,
     event_day: event.event_day,
     ticket_price: Number(event.ticket_price ?? 0),
@@ -18,26 +22,56 @@ function mapEvent(event) {
 }
 
 export async function createEvent(input) {
-  const { data, error } = await supabase
-    .from("events")
-    .insert(input)
-    .select("id,event_name,event_picture,event_day,ticket_price,created_at")
-    .single();
+  const insertPayload = {
+    event_name: input.event_name,
+    event_description: input.event_description || "",
+    ticket_type: input.ticket_type || "Regular",
+    location: input.location || "Campus",
+    event_picture: input.event_picture,
+    event_day: input.event_day,
+    ticket_price: input.ticket_price || 0,
+    status: input.status || "pending",
+  };
 
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .insert(insertPayload)
+      .select("*")
+      .single();
+
+    if (error) {
+      // If new columns not yet in DB schema, fallback to core fields
+      if (error.message && (error.message.includes("column") || error.code === "PGRST204")) {
+        const fallbackPayload = {
+          event_name: input.event_name,
+          event_picture: input.event_picture,
+          event_day: input.event_day,
+          ticket_price: input.ticket_price || 0,
+        };
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("events")
+          .insert(fallbackPayload)
+          .select("id,event_name,event_picture,event_day,ticket_price,created_at")
+          .single();
+        if (fallbackError) throw fallbackError;
+        return mapEvent({ ...fallbackData, ...insertPayload, attendee_count: 0 });
+      }
+      throw error;
+    }
+    return mapEvent({ ...data, attendee_count: 0, paid_attendees_count: 0, total_revenue: 0, host_payout_amount: 0 });
+  } catch (error) {
     throw new ApiError(400, "Unable to create event", {
       message: error.message,
       details: error.details,
     });
   }
-
-  return mapEvent({ ...data, attendee_count: 0, paid_attendees_count: 0, total_revenue: 0, host_payout_amount: 0 });
 }
 
 export async function listEvents() {
   const { data: events, error } = await supabase
     .from("events")
-    .select("id,event_name,event_picture,event_day,ticket_price,created_at")
+    .select("*")
     .order("event_day", { ascending: true });
 
   if (error) {

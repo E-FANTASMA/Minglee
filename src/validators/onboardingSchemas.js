@@ -51,8 +51,8 @@ export const preferencesSchema = z
   .object({
     preferred_min_age: z.number().int().min(18).optional(),
     preferred_max_age: z.number().int().min(18).optional(),
-    preferred_min_height: z.number().int().min(90).max(250).optional(),
-    preferred_max_height: z.number().int().min(90).max(250).optional(),
+    preferred_min_height: z.number().int().min(36).max(96).optional(),
+    preferred_max_height: z.number().int().min(36).max(96).optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

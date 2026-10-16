@@ -21,6 +21,16 @@ export async function uploadUserPhoto(req, res) {
   if (!file) throw new ApiError(400, "Missing file");
   if (!file.mimetype?.startsWith("image/")) throw new ApiError(400, "Invalid file type (expected image/*)");
 
+  // Strictly enforce only 2 images limit
+  const { count, error: countErr } = await supabase
+    .from("user_photos")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if (!countErr && (count ?? 0) >= 2) {
+    throw new ApiError(400, "Maximum of 2 images allowed. Only 2 photos can be uploaded.");
+  }
+
   const ext = safeExt(file.originalname) || "";
   const objectPath = `${userId}/${randomUUID()}${ext}`;
 

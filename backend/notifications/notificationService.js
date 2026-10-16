@@ -1,5 +1,6 @@
 import { supabase } from "../../src/supabase.js";
 import crypto from "crypto";
+import { ApiError } from "../../src/utils/apiError.js";
 
 const inMemoryNotifications = new Map();
 
@@ -14,6 +15,38 @@ function isTableNotFoundError(error) {
 }
 
 export const notificationService = {
+  async savePushSubscription(userId, subscription, userAgent) {
+    const payload = {
+      user_id: userId,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      expiration_time: subscription.expirationTime ?? null,
+      user_agent: userAgent || null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from("push_subscriptions")
+      .upsert(payload, { onConflict: "endpoint" })
+      .select("id, user_id, endpoint, expiration_time, created_at, updated_at")
+      .single();
+
+    if (error) {
+      if (
+        error.code === "PGRST205" ||
+        error.code === "42P01" ||
+        error.message?.includes("push_subscriptions")
+      ) {
+        throw new ApiError(
+          503,
+          "Push subscription storage is not configured. Apply backend/migrations/20261008_push_subscriptions.sql in the Supabase SQL Editor."
+        );
+      }
+      throw error;
+    }
+    return data;
+  },
+
   async createNotification(data) {
     const payload = {
       user_id: data.user_id,

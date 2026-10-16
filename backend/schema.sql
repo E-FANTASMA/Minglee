@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS public.events (
 );
 
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS ticket_price NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_description TEXT DEFAULT '';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS ticket_type TEXT DEFAULT 'Regular';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS location TEXT DEFAULT 'Campus';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
 
 CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -208,7 +212,7 @@ CREATE TABLE IF NOT EXISTS public.ads (
   CONSTRAINT chk_media_required CHECK (
     ad_type = 'notification' OR (image_url IS NOT NULL AND length(trim(image_url)) > 0)
   ),
-  CONSTRAINT chk_ad_type CHECK (ad_type IN ('banner', 'notification', 'popup')),
+  CONSTRAINT chk_ad_type CHECK (ad_type IN ('banner', 'notification', 'popup', 'ticket_boost')),
   CONSTRAINT chk_ad_status CHECK (status IN ('pending', 'approved', 'rejected', 'expired'))
 );
 
@@ -220,6 +224,7 @@ ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS text_content TEXT NOT NULL DEFAU
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS target_url TEXT;
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS popup_id UUID REFERENCES public.ads(id) ON DELETE SET NULL;
+ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS event_id UUID REFERENCES public.events(id) ON DELETE SET NULL;
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE;
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS start_time TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours');
@@ -237,13 +242,15 @@ ALTER TABLE public.ads ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAU
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'public.ads'::regclass AND conname = 'chk_ad_type'
   ) THEN
-    ALTER TABLE public.ads ADD CONSTRAINT chk_ad_type
-      CHECK (ad_type IN ('banner', 'notification', 'popup'));
+    ALTER TABLE public.ads DROP CONSTRAINT chk_ad_type;
   END IF;
+  ALTER TABLE public.ads ADD CONSTRAINT chk_ad_type
+    CHECK (ad_type IN ('banner', 'notification', 'popup', 'ticket_boost'));
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'public.ads'::regclass AND conname = 'chk_ad_status'
@@ -314,7 +321,7 @@ DECLARE
   max_allowed INT;
 BEGIN
   IF NEW.status = 'approved' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'approved') THEN
-    IF NEW.ad_type = 'banner' THEN
+    IF NEW.ad_type IN ('banner', 'ticket_boost') THEN
       max_allowed := 3;
     ELSIF NEW.ad_type IN ('notification', 'popup') THEN
       max_allowed := 1;

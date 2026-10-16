@@ -2,10 +2,30 @@ import { notificationService } from "./notificationService.js";
 import {
   createNotificationSchema,
   triggerBroadcastSchema,
-  createPopupSchema
+  createPopupSchema,
+  pushSubscriptionSchema
 } from "./notificationValidator.js";
 
 export const notificationController = {
+  async subscribe(req, res, next) {
+    try {
+      const { subscription } = pushSubscriptionSchema.parse(req.body);
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      const data = await notificationService.savePushSubscription(
+        userId,
+        subscription,
+        req.get("user-agent")
+      );
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async createNotification(req, res, next) {
     try {
       const payload = {

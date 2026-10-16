@@ -18,6 +18,10 @@ Important: keep `.env` private (it is ignored by `backend/.gitignore`).
 
 The canonical schema and upgrade SQL is in `backend/schema.sql`. Review and apply it manually in Supabase; the application does not execute schema migrations on startup. Other SQL schema files are retained as historical references and should not be applied separately.
 
+For push notification subscriptions, apply the additive migration in `migrations/20261008_push_subscriptions.sql` using the Supabase SQL Editor. This migration only creates the `push_subscriptions` table and its user index; it does not apply unrelated canonical schema changes.
+
+Ad image uploads use the public Supabase Storage bucket configured by `SUPABASE_ADS_BUCKET`, falling back to `SUPABASE_USER_PHOTOS_BUCKET`. The bucket must exist and allow public reads for the returned image URLs to display in the app.
+
 This backend expects your Postgres schema to include a `public.users` table with:
 - `id uuid primary key default gen_random_uuid()`
 - `name text not null`
@@ -44,6 +48,14 @@ Request:
 Response:
 ```json
 { "user": { "id": "uuid", "name": "Jane", "whatsapp_number": "+2348012345678", "role": "user" }, "access_token": "jwt" }
+```
+
+### `POST /admin/notifications/send`
+Requires the `x-admin-secret` header to match the server's `ADMIN_SECRET`. Creates an in-app notification for all users, or one user when `targetAudience` is `"single"` and `targetUserId` is provided. If VAPID is configured and recipients have registered subscriptions, it also sends web push notifications and reports delivery counts.
+
+Request:
+```json
+{ "title": "Update", "body": "An update from Minglee", "url": "/home", "targetAudience": "all" }
 ```
 
 ### `POST /profile` (Auth)

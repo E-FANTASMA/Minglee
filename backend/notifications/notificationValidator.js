@@ -32,3 +32,16 @@ export const createPopupSchema = z.object({
   metadata: z.record(z.any()).optional().default({}),
   action_url: z.string().optional()
 });
+
+export const pushSubscriptionSchema = z.object({
+  subscription: z.object({
+    endpoint: z.string().url().refine((value) => value.startsWith("https://"), {
+      message: "Push subscription endpoint must use HTTPS"
+    }),
+    expirationTime: z.number().nullable().optional(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1)
+    })
+  })
+});

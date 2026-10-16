@@ -1,15 +1,21 @@
 import { Router } from "express";
 import { adController } from "./adController.js";
+import { authMiddleware } from "../../src/middleware/auth.js";
+import { uploadAnyImage } from "../../src/middleware/upload.js";
+import { asyncHandler } from "../../src/utils/asyncHandler.js";
 
 export const adRoutes = Router();
 
-// Endpoint definitions per specification:
-// POST /ads → create ad
-// GET /ads → fetch active ads (filter by placement + date)
-// POST /ads/:id/click → increment click count
-// POST /ads/:id/impression → increment impression count
-
-adRoutes.post("/", adController.createAd);
-adRoutes.get("/", adController.getActiveAds);
-adRoutes.post("/:id/impression", adController.trackImpression);
-adRoutes.post("/:id/click", adController.trackClick);
+adRoutes.post(
+  "/upload",
+  authMiddleware,
+  uploadAnyImage,
+  asyncHandler(adController.uploadImage)
+);
+adRoutes.get("/availability/:ad_type/:date", asyncHandler(adController.checkAvailability));
+adRoutes.get("/pending", asyncHandler(adController.getPendingAds));
+adRoutes.post("/:id/review", asyncHandler(adController.reviewAd));
+adRoutes.post("/", asyncHandler(adController.createAd));
+adRoutes.get("/", asyncHandler(adController.getActiveAds));
+adRoutes.post("/:id/impression", asyncHandler(adController.trackImpression));
+adRoutes.post("/:id/click", asyncHandler(adController.trackClick));

@@ -18,7 +18,7 @@ Important: keep `.env` private (it is ignored by `backend/.gitignore`).
 
 The canonical schema and upgrade SQL is in `backend/schema.sql`. Review and apply it manually in Supabase; the application does not execute schema migrations on startup. Other SQL schema files are retained as historical references and should not be applied separately.
 
-For push notification subscriptions, apply the additive migration in `migrations/20261008_push_subscriptions.sql` using the Supabase SQL Editor. This migration only creates the `push_subscriptions` table and its user index; it does not apply unrelated canonical schema changes.
+For push notification subscriptions, the `push_subscriptions` table (and its user index/RLS policy) is defined in `backend/schema.sql`. Apply it via the Supabase SQL Editor if it hasn't been run against the target project yet.
 
 Ad image uploads use the public Supabase Storage bucket configured by `SUPABASE_ADS_BUCKET`, falling back to `SUPABASE_USER_PHOTOS_BUCKET`. The bucket must exist and allow public reads for the returned image URLs to display in the app.
 
